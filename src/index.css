@@ -1,5 +1,16 @@
 @import 'tailwindcss';
 
+/* WingAI palette (from the app's colors.js): orange primary, sky secondary. */
+@theme {
+  --color-wing-50: #fff3ec;
+  --color-wing-400: #ffa476;
+  --color-wing-500: #ff8248;
+  --color-wing-600: #f06a2f;
+  --color-wing-700: #d85a24;
+  --color-wing-950: #3d1c0d;
+  --color-wingsky-400: #90e0ef;
+}
+
 :root {
   color-scheme: dark;
 }

@@ -57,7 +57,7 @@ export default function Settings() {
           className="mt-1 w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2"
         />
       </label>
-      <button onClick={save} className="rounded-lg bg-sky-600 px-4 py-2 hover:bg-sky-500">
+      <button onClick={save} className="rounded-lg bg-wing-500 px-4 py-2 hover:bg-wing-400">
         Save
       </button>
       {status && <span className="ml-3 text-sm text-neutral-400">{status}</span>}

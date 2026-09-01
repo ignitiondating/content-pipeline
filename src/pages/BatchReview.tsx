@@ -91,7 +91,7 @@ export default function BatchReview() {
               <button
                 disabled={busyId === draft.id}
                 onClick={() => act(draft.id, () => api.render(draft.id))}
-                className="rounded-lg bg-sky-700 px-3 py-1.5 hover:bg-sky-600 disabled:opacity-50"
+                className="rounded-lg bg-wing-600 px-3 py-1.5 hover:bg-wing-500 disabled:opacity-50"
               >
                 Render
               </button>

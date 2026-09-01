@@ -1,26 +1,48 @@
-import { CHAT_CANVAS, CHAT_THEMES, type ChatMessage } from '@shared/formats/chat'
+import { CHAT_CANVAS, type ChatMessage } from '@shared/formats/chat'
 import type { Slide } from '@shared/formats/slideshow'
+import { BRAND } from '@shared/brand'
 
 interface SlideCardProps {
   slide: Slide
-  /** URL of the background image; falls back to a gradient when absent. */
+  /** URL of the background photo; without one the slide is flat matte paper. */
   backgroundUrl?: string
 }
 
 const FONT_STACK = "-apple-system, BlinkMacSystemFont, system-ui, sans-serif"
 
-function SnippetCard({ messages }: { messages: ChatMessage[] }) {
-  const theme = CHAT_THEMES.dark
+function Wordmark({ onPhoto }: { onPhoto: boolean }) {
   return (
     <div
       style={{
-        background: 'rgba(10,10,12,0.92)',
-        borderRadius: 20,
-        padding: '14px 16px',
+        position: 'absolute',
+        bottom: 34,
+        left: 0,
+        right: 0,
+        textAlign: 'center',
+        fontSize: 17,
+        fontWeight: 700,
+        letterSpacing: 0.5,
+        color: onPhoto ? '#FFFFFF' : BRAND.ink,
+      }}
+    >
+      {BRAND.wordmark}
+      <span style={{ color: BRAND.orange }}>.</span>
+    </div>
+  )
+}
+
+/** Chat snippet in WingAI's own styling: orange for "me", matte grey for "them". */
+function SnippetCard({ messages }: { messages: ChatMessage[] }) {
+  return (
+    <div
+      style={{
+        background: '#FFFFFF',
+        borderRadius: 22,
+        padding: '16px 18px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 6,
-        boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+        gap: 7,
+        boxShadow: '0 8px 30px rgba(33,33,33,0.12)',
       }}
     >
       {messages.map((message, i) => {
@@ -29,8 +51,8 @@ function SnippetCard({ messages }: { messages: ChatMessage[] }) {
           <div key={i} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
             <div
               style={{
-                background: mine ? theme.bubbleMe : theme.bubbleThem,
-                color: '#FFFFFF',
+                background: mine ? BRAND.orange : '#EEEEEE',
+                color: mine ? '#FFFFFF' : BRAND.ink,
                 borderRadius: 18,
                 [mine ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5,
                 padding: '8px 13px',
@@ -49,6 +71,10 @@ function SnippetCard({ messages }: { messages: ChatMessage[] }) {
 }
 
 export default function SlideCard({ slide, backgroundUrl }: SlideCardProps) {
+  const onPhoto = Boolean(backgroundUrl)
+  const textColor = onPhoto ? '#FFFFFF' : BRAND.ink
+  const subColor = onPhoto ? 'rgba(255,255,255,0.92)' : BRAND.greyText
+
   return (
     <div
       style={{
@@ -57,26 +83,25 @@ export default function SlideCard({ slide, backgroundUrl }: SlideCardProps) {
         position: 'relative',
         overflow: 'hidden',
         fontFamily: FONT_STACK,
-        background: backgroundUrl
-          ? undefined
-          : 'linear-gradient(160deg,#12131a 0%,#1d2030 55%,#2a1f3d 100%)',
+        background: BRAND.paper,
       }}
     >
       {backgroundUrl && (
-        <img
-          src={backgroundUrl}
-          alt=""
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-        />
+        <>
+          <img
+            src={backgroundUrl}
+            alt=""
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'linear-gradient(180deg,rgba(33,33,33,0.5) 0%,rgba(33,33,33,0.2) 45%,rgba(33,33,33,0.55) 100%)',
+            }}
+          />
+        </>
       )}
-      {/* scrim so text always reads */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'linear-gradient(180deg,rgba(0,0,0,0.55) 0%,rgba(0,0,0,0.25) 45%,rgba(0,0,0,0.6) 100%)',
-        }}
-      />
       <div
         style={{
           position: 'relative',
@@ -84,38 +109,33 @@ export default function SlideCard({ slide, backgroundUrl }: SlideCardProps) {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          padding: '60px 40px',
-          gap: 22,
-          color: '#FFFFFF',
+          padding: '60px 44px 90px',
+          gap: 20,
+          color: textColor,
         }}
       >
         {slide.kicker && (
           <div
             style={{
-              fontSize: 19,
-              fontWeight: 700,
-              letterSpacing: 2,
+              fontSize: 17,
+              fontWeight: 800,
+              letterSpacing: 2.5,
               textTransform: 'uppercase',
-              opacity: 0.85,
+              color: BRAND.orange,
             }}
           >
             {slide.kicker}
           </div>
         )}
-        <div
-          style={{
-            fontSize: 42,
-            fontWeight: 800,
-            lineHeight: 1.12,
-            textShadow: '0 2px 14px rgba(0,0,0,0.55)',
-          }}
-        >
+        {/* minimalist accent bar */}
+        {!slide.kicker && <div style={{ width: 44, height: 6, borderRadius: 3, background: BRAND.orange }} />}
+        <div style={{ fontSize: 44, fontWeight: 800, lineHeight: 1.12, letterSpacing: -0.5 }}>
           {slide.title}
         </div>
         {slide.lines && slide.lines.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {slide.lines.map((line, i) => (
-              <div key={i} style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.3, opacity: 0.94 }}>
+              <div key={i} style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.35, color: subColor }}>
                 {line}
               </div>
             ))}
@@ -123,6 +143,7 @@ export default function SlideCard({ slide, backgroundUrl }: SlideCardProps) {
         )}
         {slide.chatSnippet && <SnippetCard messages={slide.chatSnippet} />}
       </div>
+      <Wordmark onPhoto={onPhoto} />
     </div>
   )
 }

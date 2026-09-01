@@ -144,7 +144,7 @@ export default function DraftEditor() {
           <button
             onClick={sendToRender}
             disabled={Boolean(parsed.error)}
-            className="rounded-lg bg-sky-600 px-4 py-2 hover:bg-sky-500 disabled:opacity-50"
+            className="rounded-lg bg-wing-500 px-4 py-2 hover:bg-wing-400 disabled:opacity-50"
           >
             Save & render
           </button>
@@ -168,7 +168,7 @@ export default function DraftEditor() {
                   key={i}
                   onClick={() => setSlideIndex(i)}
                   className={`h-8 w-8 rounded-lg border text-sm ${
-                    slideIndex === i ? 'border-sky-500 bg-sky-950/40' : 'border-neutral-800'
+                    slideIndex === i ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
                   }`}
                 >
                   {i + 1}

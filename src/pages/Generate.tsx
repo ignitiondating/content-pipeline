@@ -47,7 +47,7 @@ export default function Generate() {
             key={card.key}
             onClick={() => setFormat(card.key)}
             className={`rounded-xl border p-4 text-left ${
-              format === card.key ? 'border-sky-500 bg-sky-950/40' : 'border-neutral-800 hover:border-neutral-600'
+              format === card.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800 hover:border-neutral-600'
             }`}
           >
             <div className="font-semibold">{card.title}</div>
@@ -63,7 +63,7 @@ export default function Generate() {
               key={s.key}
               onClick={() => setStyle(s.key)}
               className={`rounded-lg border px-3 py-1.5 text-sm ${
-                style === s.key ? 'border-sky-500 bg-sky-950/40' : 'border-neutral-800'
+                style === s.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
               }`}
             >
               {s.label}
@@ -102,7 +102,7 @@ export default function Generate() {
       <button
         onClick={submit}
         disabled={busy}
-        className="rounded-lg bg-sky-600 px-5 py-2 font-medium hover:bg-sky-500 disabled:opacity-50"
+        className="rounded-lg bg-wing-500 px-5 py-2 font-medium hover:bg-wing-400 disabled:opacity-50"
       >
         {busy ? 'Generating…' : serial ? 'Generate serial' : `Generate ${count} variants`}
       </button>

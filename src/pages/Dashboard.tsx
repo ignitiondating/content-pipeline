@@ -42,7 +42,7 @@ export default function Dashboard() {
         </div>
       )}
       <div className="flex gap-3">
-        <Link to="/generate" className="rounded-lg bg-sky-600 px-4 py-2 font-medium hover:bg-sky-500">
+        <Link to="/generate" className="rounded-lg bg-wing-500 px-4 py-2 font-medium hover:bg-wing-400">
           Generate content
         </Link>
         <Link to="/library" className="rounded-lg border border-neutral-700 px-4 py-2 hover:border-neutral-500">

@@ -38,7 +38,7 @@ export default function App() {
     <div className="flex min-h-screen">
       <aside className="w-52 shrink-0 border-r border-neutral-800 p-4">
         <div className="mb-6 text-lg font-bold">
-          Wing<span className="text-sky-400">AI</span> pipeline
+          Wing<span className="text-wing-400">AI</span> pipeline
         </div>
         <nav className="flex flex-col gap-1">
           {NAV.map((item) => (

@@ -48,7 +48,7 @@ export default function RenderQueue() {
                     ? 'text-emerald-400'
                     : job.status === 'error'
                       ? 'text-red-400'
-                      : 'text-sky-400'
+                      : 'text-wing-400'
                 }
               >
                 {job.status}
@@ -56,7 +56,7 @@ export default function RenderQueue() {
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-neutral-800">
               <div
-                className={`h-full ${job.status === 'error' ? 'bg-red-500' : 'bg-sky-500'}`}
+                className={`h-full ${job.status === 'error' ? 'bg-red-500' : 'bg-wing-500'}`}
                 style={{ width: `${Math.round(job.progress * 100)}%` }}
               />
             </div>

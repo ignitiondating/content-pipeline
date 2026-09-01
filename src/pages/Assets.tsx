@@ -35,7 +35,7 @@ export default function Assets() {
       <button
         onClick={rescan}
         disabled={busy}
-        className="mb-4 rounded-lg bg-sky-600 px-4 py-2 hover:bg-sky-500 disabled:opacity-50"
+        className="mb-4 rounded-lg bg-wing-500 px-4 py-2 hover:bg-wing-400 disabled:opacity-50"
       >
         {busy ? 'Scanning…' : 'Rescan library'}
       </button>

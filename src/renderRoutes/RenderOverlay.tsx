@@ -1,5 +1,6 @@
 import { CHAT_CANVAS } from '@shared/formats/chat'
 import type { ClipSpec } from '@shared/formats/clip'
+import { BRAND } from '@shared/brand'
 import { useReadyFlag, useSpec } from './useCapture'
 
 /** Capture page for the clip's hook text: transparent PNG, ?specId=<draftId>. */
@@ -36,6 +37,23 @@ export default function RenderOverlay() {
           }}
         >
           {spec.hook}
+        </div>
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 46,
+            left: 0,
+            right: 0,
+            textAlign: 'center',
+            fontSize: 19,
+            fontWeight: 700,
+            letterSpacing: 0.5,
+            color: '#FFFFFF',
+            textShadow: '0 1px 3px rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.6)',
+          }}
+        >
+          {BRAND.wordmark}
+          <span style={{ color: BRAND.orange }}>.</span>
         </div>
       </div>
     </div>
