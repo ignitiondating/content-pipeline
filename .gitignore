@@ -1,0 +1,8 @@
+node_modules/
+vendor/
+data/studio.db*
+out/
+library/**/*
+!library/**/.gitkeep
+.env
+*.log

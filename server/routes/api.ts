@@ -1,0 +1,166 @@
+import { Hono } from 'hono'
+import { z } from 'zod'
+import { FORMATS, DRAFT_STATUSES } from '../../shared/formats/draft'
+import { SLIDESHOW_STYLES } from '../../shared/formats/slideshow'
+import { buildClipTimeline } from '../../shared/timeline'
+import { zodIssues } from '../../shared/validate'
+import { listAssets, rescanAssets } from '../assets/catalog'
+import { chromiumAvailable } from '../capture/browser'
+import { allSettings, getDraft, listDrafts, setSetting, statusCounts, updateDraft } from '../db/repo'
+import { MODELS } from '../generate/client'
+import { generateBatch, regenerateDraft } from '../generate/service'
+import { probeFfmpeg } from '../render/ffmpeg'
+import { exportJob, listExports } from '../render/export'
+import { enqueueRender, getJob, listJobs, jobOutputs } from '../render/jobs'
+
+export const api = new Hono()
+
+const asError = (error: unknown) =>
+  error instanceof z.ZodError
+    ? zodIssues(error)
+    : error instanceof Error
+      ? error.message
+      : String(error)
+
+// ---- generation ----------------------------------------------------------
+
+const GenerateBody = z.object({
+  format: z.enum(FORMATS),
+  brief: z.string().max(2000).default(''),
+  count: z.number().int().min(1).max(10).default(5),
+  style: z.enum(SLIDESHOW_STYLES).optional(),
+  serial: z.boolean().default(false),
+})
+
+api.post('/generate', async (c) => {
+  try {
+    const body = GenerateBody.parse(await c.req.json())
+    const drafts = await generateBatch(body)
+    return c.json({ drafts })
+  } catch (error) {
+    return c.json({ error: asError(error) }, 400)
+  }
+})
+
+// ---- drafts --------------------------------------------------------------
+
+api.get('/drafts', (c) => {
+  const { status, format, seriesId, batchId } = c.req.query()
+  return c.json({ drafts: listDrafts({ status, format, seriesId, batchId }) })
+})
+
+api.get('/drafts/:id', (c) => {
+  const draft = getDraft(c.req.param('id'))
+  return draft ? c.json({ draft }) : c.json({ error: 'not found' }, 404)
+})
+
+const PatchBody = z.object({
+  spec: z.unknown().optional(),
+  meta: z.unknown().optional(),
+  status: z.enum(DRAFT_STATUSES).optional(),
+})
+
+api.patch('/drafts/:id', async (c) => {
+  try {
+    const body = PatchBody.parse(await c.req.json())
+    return c.json({ draft: updateDraft(c.req.param('id'), body) })
+  } catch (error) {
+    return c.json({ error: asError(error) }, 400)
+  }
+})
+
+api.post('/drafts/:id/regenerate', async (c) => {
+  try {
+    return c.json({ draft: await regenerateDraft(c.req.param('id')) })
+  } catch (error) {
+    return c.json({ error: asError(error) }, 400)
+  }
+})
+
+// ---- specs (consumed by the /render/* capture pages) ---------------------
+
+api.get('/specs/:id', (c) => {
+  const draft = getDraft(c.req.param('id'))
+  if (!draft) return c.json({ error: 'not found' }, 404)
+  const clipTimeline =
+    draft.format === 'clip'
+      ? buildClipTimeline((draft.spec as { chat: Parameters<typeof buildClipTimeline>[0] }).chat)
+      : null
+  return c.json({ format: draft.format, spec: draft.spec, meta: draft.meta, clipTimeline })
+})
+
+// ---- render jobs ---------------------------------------------------------
+
+api.post('/render', async (c) => {
+  try {
+    const { draftId } = z.object({ draftId: z.string() }).parse(await c.req.json())
+    return c.json({ jobId: enqueueRender(draftId) })
+  } catch (error) {
+    return c.json({ error: asError(error) }, 400)
+  }
+})
+
+api.get('/render', (c) => c.json({ jobs: listJobs() }))
+
+api.get('/render/:jobId', (c) => {
+  const job = getJob(c.req.param('jobId'))
+  if (!job) return c.json({ error: 'not found' }, 404)
+  return c.json({ job, outputs: job.status === 'done' ? jobOutputs(job) : [] })
+})
+
+api.post('/render/:jobId/export', (c) => {
+  try {
+    return c.json({ export: exportJob(c.req.param('jobId')) })
+  } catch (error) {
+    return c.json({ error: asError(error) }, 400)
+  }
+})
+
+// ---- exports / library ---------------------------------------------------
+
+api.get('/exports', (c) => c.json({ exports: listExports() }))
+
+api.post('/exports/:draftId/posted', (c) => {
+  try {
+    return c.json({ draft: updateDraft(c.req.param('draftId'), { status: 'posted' }) })
+  } catch (error) {
+    return c.json({ error: asError(error) }, 400)
+  }
+})
+
+// ---- assets --------------------------------------------------------------
+
+api.get('/assets', (c) => c.json({ assets: listAssets() }))
+
+api.post('/assets/rescan', async (c) => {
+  try {
+    return c.json(await rescanAssets())
+  } catch (error) {
+    return c.json({ error: asError(error) }, 400)
+  }
+})
+
+// ---- settings / health ---------------------------------------------------
+
+api.get('/settings', (c) =>
+  c.json({ settings: allSettings(), models: MODELS, apiKeySet: Boolean(process.env.ANTHROPIC_API_KEY) }),
+)
+
+api.put('/settings', async (c) => {
+  const body = z.record(z.string(), z.string()).parse(await c.req.json())
+  for (const [key, value] of Object.entries(body)) setSetting(key, value)
+  return c.json({ settings: allSettings() })
+})
+
+api.get('/health', async (c) => {
+  const [ffmpeg, chromium] = await Promise.all([
+    probeFfmpeg().catch((e: Error) => ({ ok: false, error: e.message })),
+    chromiumAvailable(),
+  ])
+  return c.json({
+    ffmpeg,
+    chromium,
+    apiKeySet: Boolean(process.env.ANTHROPIC_API_KEY),
+    counts: statusCounts(),
+  })
+})

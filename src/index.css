@@ -1,0 +1,15 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-neutral-950 text-neutral-100;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Capture pages set their own background (or none, for transparent PNGs). */
+body:has([data-capture-page]) {
+  background: transparent;
+}
