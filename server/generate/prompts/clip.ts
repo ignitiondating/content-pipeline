@@ -8,9 +8,11 @@ export function buildClipPrompt(brief: string, count: number, avoidHooks: string
     schema: variantsSchema(ClipSpecSchema),
     system: STYLE_GUIDE,
     user: [
-      `FORMAT: 15-40 second vertical clip. B-roll (basketball highlights or 3D animation) fills the frame; the chat card animates message by message on top; the hook is burned into frame 1.
+      `FORMAT: 15-40 second vertical clip. Two structures, pick per variant (mix them across a batch):
+- structure "overlay": continuous b-roll with a floating chat card revealing message by message. Lesson energy.
+- structure "cuts": full-screen chat screenshots HARD-CUT with 2-3s b-roll hype bursts after every exchange — the payoff of each exchange earns the hype cut. Highlight-reel energy.
 - hook: instruction framing, max ~50 chars: "Texting huzz *take notes*", "How to revive a dry convo *open your notebook*". This is THE retention device.
-- hookPersists: true for lesson-style clips, false when the chat itself is the star.
+- hookPersists: true for lesson-style overlay clips, false for cuts (the hook rides only the intro burst).
 - chat: ONE short exchange, 4-9 messages, sub-40s read time. The payoff message lands last.
 - brollTag: "basketball" for confident/outcome energy, "3d" for absurd/comedic energy.
 - withMusic: false by default (trending sound is added at post time).

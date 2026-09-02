@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildClipTimeline } from './timeline'
+import { buildClipTimeline, buildCutsTimeline } from './timeline'
 import { CLIP_LIMITS } from './formats/clip'
 import type { ChatSpec } from './formats/chat'
 
@@ -59,5 +59,42 @@ describe('buildClipTimeline', () => {
       ]),
     )
     expect(durationS).toBeGreaterThanOrEqual(CLIP_LIMITS.minDurationS - 0.05)
+  })
+})
+
+describe('buildCutsTimeline', () => {
+  const spec = chat([
+    ['them', 'so what are we'],
+    ['me', 'the reason your phone battery dies'],
+    ['them', 'omg'],
+    ['me', 'come over and find out'],
+    ['them', 'ok fine'],
+  ])
+
+  it('is deterministic and opens/closes with b-roll', () => {
+    const a = buildCutsTimeline(spec)
+    expect(a).toEqual(buildCutsTimeline(spec))
+    expect(a.segments[0].type).toBe('broll')
+    expect(a.segments[a.segments.length - 1].type).toBe('broll')
+  })
+
+  it('adds one chat screen per message, each revealing one more', () => {
+    const { segments } = buildCutsTimeline(spec)
+    const chats = segments.filter((s) => s.type === 'chat')
+    expect(chats.map((s) => s.visibleCount)).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it('inserts hype bursts between exchanges but never right before the outro', () => {
+    const { segments } = buildCutsTimeline(spec)
+    const types = segments.map((s) => s.type).join(',')
+    expect(types).toBe('broll,chat,chat,broll,chat,chat,broll,chat,broll')
+  })
+
+  it('keeps the total inside the clip limits', () => {
+    const long = chat(
+      Array.from({ length: 18 }, (_, i) => [i % 2 ? 'me' : 'them', 'a fairly long message to inflate the timing here']),
+    )
+    expect(buildCutsTimeline(long).durationS).toBeLessThanOrEqual(CLIP_LIMITS.maxDurationS + 0.15)
+    expect(buildCutsTimeline(spec).durationS).toBeGreaterThanOrEqual(CLIP_LIMITS.minDurationS - 0.15)
   })
 })

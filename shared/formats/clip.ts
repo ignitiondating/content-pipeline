@@ -13,6 +13,12 @@ export const ClipSpecSchema = z.object({
   hook: z.string().min(1).max(80),
   /** Keep the hook on screen the whole clip (true) or only the first 3s. */
   hookPersists: z.boolean(),
+  /**
+   * 'overlay': chat card floats over continuous b-roll, revealing message by
+   * message. 'cuts': full-screen chat screenshots hard-cut with 2-3s b-roll
+   * hype bursts (the @fivestaryra "shoot your shot" reference format).
+   */
+  structure: z.enum(['overlay', 'cuts']).default('overlay'),
   chat: ChatSpecSchema,
   brollTag: z.enum(BROLL_TAGS),
   /** Mux a music track from library/music. Trending sound is added in-app at post time. */

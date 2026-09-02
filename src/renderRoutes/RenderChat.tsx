@@ -6,8 +6,9 @@ import { useReadyFlag, useSpec } from './useCapture'
 
 /**
  * Capture page for chat images.
- *   ?specId=<draftId>&slide=N       → carousel slide N, full-screen chat
- *   ?specId=<draftId>&clipState=N   → clip timeline state N, floating card
+ *   ?specId=<draftId>&slide=N            → carousel slide N, full-screen chat
+ *   ?specId=<draftId>&clipState=N        → overlay clip state N, floating card
+ *   ?specId=<draftId>&full=1&visible=N   → cuts clip screen, full chat with N messages
  */
 export default function RenderChat() {
   const { data, error, params } = useSpec()
@@ -15,6 +16,16 @@ export default function RenderChat() {
 
   if (error) return <div data-capture-page>error: {error}</div>
   if (!data) return <div data-capture-page />
+
+  if (params.get('full') !== null && data.format === 'clip') {
+    const spec = data.spec as ClipSpec
+    const visible = Number(params.get('visible') ?? spec.chat.messages.length)
+    return (
+      <div data-capture-page>
+        <ChatScreen spec={spec.chat} mode="full" visibleCount={visible} />
+      </div>
+    )
+  }
 
   const clipState = params.get('clipState')
   if (clipState !== null) {
