@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type Job } from '../lib/api'
 
@@ -6,23 +6,71 @@ function outputUrl(job: Job, file: string): string {
   return `/files/out/render/${job.id}/${file}`
 }
 
-function JobPreview({ job }: { job: Job }) {
+function timeAgo(iso: string): string {
+  const seconds = (Date.now() - new Date(iso).getTime()) / 1000
+  if (seconds < 60) return 'just now'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  return `${Math.floor(seconds / 86400)}d ago`
+}
+
+function Media({ job, height, compact = false }: { job: Job; height: number; compact?: boolean }) {
   const video = job.outputs.find((f) => f.endsWith('.mp4'))
   const images = job.outputs.filter((f) => f.endsWith('.png'))
   if (video) {
-    return <video src={outputUrl(job, video)} controls className="max-h-80 rounded-xl bg-black" />
+    return (
+      <video
+        src={outputUrl(job, video)}
+        controls={!compact}
+        muted={compact}
+        preload="metadata"
+        className="shrink-0 rounded-lg bg-black"
+        style={{ height, width: Math.round(height * 0.5625), pointerEvents: compact ? 'none' : undefined }}
+      />
+    )
   }
   if (images.length > 0) {
+    const shown = compact ? images.slice(0, 1) : images
     return (
-      <div className="flex gap-2 overflow-x-auto rounded-xl bg-neutral-900 p-2">
-        {images.map((file) => (
-          <img key={file} src={outputUrl(job, file)} alt="" className="h-64 shrink-0 rounded-lg" />
+      <div className="flex shrink-0 gap-1.5 overflow-x-auto" style={{ maxWidth: 360 }}>
+        {shown.map((file) => (
+          <img
+            key={file}
+            src={outputUrl(job, file)}
+            alt=""
+            className="shrink-0 rounded-lg"
+            style={{ height }}
+          />
         ))}
       </div>
     )
   }
-  return <p className="text-sm text-neutral-500">Output files were already swept — find this piece in the Library.</p>
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center rounded-lg bg-neutral-900 text-xs text-neutral-600"
+      style={{ height, width: Math.round(height * 0.5625) }}
+    >
+      swept
+    </div>
+  )
 }
+
+function Section({ title, count, children }: { title: string; count: number; children: ReactNode }) {
+  if (count === 0) return null
+  return (
+    <section className="mb-8">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+        {title} <span className="ml-1 text-neutral-600">{count}</span>
+      </h2>
+      <div className="flex flex-col gap-3">{children}</div>
+    </section>
+  )
+}
+
+const metaLine = (job: Job, count: number) =>
+  [job.format, count > 1 ? `render ${count}` : null, timeAgo(job.finished_at ?? job.created_at)]
+    .filter(Boolean)
+    .join(' · ')
 
 export default function RenderQueue() {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -44,8 +92,7 @@ export default function RenderQueue() {
     }
   }, [])
 
-  // One card per draft: the latest job wins, older renders are history.
-  const grouped = useMemo(() => {
+  const groups = useMemo(() => {
     const byDraft = new Map<string, { latest: Job; count: number }>()
     for (const job of jobs) {
       const entry = byDraft.get(job.draft_id)
@@ -55,7 +102,16 @@ export default function RenderQueue() {
         if (job.created_at > entry.latest.created_at) entry.latest = job
       }
     }
-    return [...byDraft.values()].sort((a, b) => (a.latest.created_at < b.latest.created_at ? 1 : -1))
+    const all = [...byDraft.values()].sort((a, b) =>
+      a.latest.created_at < b.latest.created_at ? 1 : -1,
+    )
+    const exported = (j: Job) => j.draftStatus === 'exported' || j.draftStatus === 'posted'
+    return {
+      active: all.filter(({ latest }) => latest.status === 'queued' || latest.status === 'running'),
+      failed: all.filter(({ latest }) => latest.status === 'error'),
+      ready: all.filter(({ latest }) => latest.status === 'done' && !exported(latest)),
+      exported: all.filter(({ latest }) => latest.status === 'done' && exported(latest)),
+    }
   }, [jobs])
 
   const act = async (id: string, action: () => Promise<unknown>) => {
@@ -69,85 +125,102 @@ export default function RenderQueue() {
     }
   }
 
+  const total =
+    groups.active.length + groups.failed.length + groups.ready.length + groups.exported.length
+
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-4xl">
       <h1 className="mb-6 text-2xl font-bold">Render queue</h1>
       {error && <div className="mb-4 rounded-lg bg-red-950 p-3 text-sm text-red-300">{error}</div>}
-      {grouped.length === 0 && (
+      {total === 0 && (
         <p className="text-neutral-500">No render jobs yet — send an approved draft here from Review.</p>
       )}
-      <div className="flex flex-col gap-4">
-        {grouped.map(({ latest: job, count }) => {
-          const exported = job.draftStatus === 'exported' || job.draftStatus === 'posted'
-          return (
-            <div key={job.draft_id} className="rounded-2xl border border-neutral-800 p-4">
-              <div className="mb-1 flex items-center justify-between gap-3">
-                <span className="text-xs text-neutral-400">
-                  {job.format}
-                  {count > 1 && ` · render ${count}`}
-                </span>
-                <span
-                  className={`text-xs font-medium ${
-                    exported
-                      ? 'text-neutral-400'
-                      : job.status === 'done'
-                        ? 'text-emerald-400'
-                        : job.status === 'error'
-                          ? 'text-red-400'
-                          : 'text-wing-400'
-                  }`}
-                >
-                  {exported ? 'exported ✓' : job.status}
-                </span>
-              </div>
-              <div className="mb-3 text-sm font-medium">{job.caption}</div>
 
-              {(job.status === 'queued' || job.status === 'running') && (
-                <div className="h-2 overflow-hidden rounded-full bg-neutral-800">
-                  <div className="h-full bg-wing-500" style={{ width: `${Math.round(job.progress * 100)}%` }} />
-                </div>
-              )}
-
-              {job.status === 'error' && (
-                <>
-                  <div className="mb-3 break-all rounded-lg bg-red-950 p-2 text-xs text-red-300">{job.message}</div>
-                  <button
-                    disabled={busyId === job.draft_id}
-                    onClick={() => act(job.draft_id, () => api.render(job.draft_id))}
-                    className="rounded-lg bg-wing-600 px-3 py-1.5 text-sm hover:bg-wing-500 disabled:opacity-50"
-                  >
-                    Retry render
-                  </button>
-                </>
-              )}
-
-              {job.status === 'done' && (
-                <>
-                  <div className="mb-3">
-                    <JobPreview job={job} />
-                  </div>
-                  {exported ? (
-                    <Link
-                      to="/library"
-                      className="inline-block rounded-lg border border-neutral-700 px-3 py-1.5 text-sm hover:border-neutral-500"
-                    >
-                      View in Library →
-                    </Link>
-                  ) : (
-                    <button
-                      disabled={busyId === job.draft_id}
-                      onClick={() => act(job.draft_id, () => api.exportJob(job.id))}
-                      className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm hover:bg-emerald-600 disabled:opacity-50"
-                    >
-                      Export to library
-                    </button>
-                  )}
-                </>
-              )}
+      <Section title="Rendering" count={groups.active.length}>
+        {groups.active.map(({ latest: job, count }) => (
+          <div key={job.draft_id} className="rounded-xl border border-neutral-800 p-4">
+            <div className="mb-2 flex items-baseline justify-between gap-4">
+              <span className="truncate text-sm font-medium">{job.caption}</span>
+              <span className="shrink-0 text-xs text-neutral-500">{metaLine(job, count)}</span>
             </div>
-          )
-        })}
-      </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-neutral-800">
+              <div
+                className="h-full bg-wing-500 transition-[width] duration-500"
+                style={{ width: `${Math.max(4, Math.round(job.progress * 100))}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </Section>
+
+      <Section title="Failed" count={groups.failed.length}>
+        {groups.failed.map(({ latest: job, count }) => (
+          <div key={job.draft_id} className="rounded-xl border border-red-950 p-4">
+            <div className="mb-1 flex items-baseline justify-between gap-4">
+              <span className="truncate text-sm font-medium">{job.caption}</span>
+              <span className="shrink-0 text-xs text-neutral-500">{metaLine(job, count)}</span>
+            </div>
+            <p className="mb-3 break-all text-xs text-red-400">{job.message}</p>
+            <button
+              disabled={busyId === job.draft_id}
+              onClick={() => act(job.draft_id, () => api.render(job.draft_id))}
+              className="rounded-lg bg-wing-600 px-3 py-1.5 text-sm hover:bg-wing-500 disabled:opacity-50"
+            >
+              Retry render
+            </button>
+          </div>
+        ))}
+      </Section>
+
+      <Section title="Ready to export" count={groups.ready.length}>
+        {groups.ready.map(({ latest: job, count }) => (
+          <div key={job.draft_id} className="flex gap-4 rounded-xl border border-neutral-800 p-4">
+            <Media job={job} height={210} />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="text-sm font-medium">{job.caption}</div>
+              <div className="mt-1 text-xs text-neutral-500">{metaLine(job, count)}</div>
+              <div className="mt-auto flex gap-2 pt-3">
+                <button
+                  disabled={busyId === job.draft_id}
+                  onClick={() => act(job.draft_id, () => api.exportJob(job.id))}
+                  className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium hover:bg-emerald-600 disabled:opacity-50"
+                >
+                  Export to library
+                </button>
+                <Link
+                  to={`/drafts/${job.draft_id}`}
+                  className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm hover:border-neutral-500"
+                >
+                  Edit draft
+                </Link>
+                <button
+                  disabled={busyId === job.draft_id}
+                  onClick={() => act(job.draft_id, () => api.render(job.draft_id))}
+                  className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm hover:border-neutral-500 disabled:opacity-50"
+                >
+                  Re-render
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </Section>
+
+      <Section title="Exported" count={groups.exported.length}>
+        {groups.exported.map(({ latest: job, count }) => (
+          <Link
+            key={job.draft_id}
+            to="/library"
+            className="group flex items-center gap-3 rounded-xl border border-neutral-900 px-3 py-2 hover:border-neutral-700"
+          >
+            <Media job={job} height={56} compact />
+            <span className="min-w-0 flex-1 truncate text-sm text-neutral-300">{job.caption}</span>
+            <span className="shrink-0 text-xs text-neutral-600">{metaLine(job, count)}</span>
+            <span className="shrink-0 text-xs text-emerald-500">exported ✓</span>
+            <span className="shrink-0 text-xs text-neutral-500 group-hover:text-white">Library →</span>
+          </Link>
+        ))}
+      </Section>
     </div>
   )
 }
