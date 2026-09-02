@@ -19,17 +19,27 @@ export async function renderClip(
   setProgress: ProgressFn,
 ): Promise<void> {
   const spec = draft.spec as ClipSpec
-  const broll = pickAsset('broll', spec.brollTag)
-  if (!broll) {
-    throw new Error(
+  const music = spec.withMusic ? pickAsset('music') : null
+  const noBroll = () =>
+    new Error(
       `no b-roll with tag "${spec.brollTag}" — drop .mp4 files into library/broll/${spec.brollTag}/ and rescan assets`,
     )
-  }
-  const music = spec.withMusic ? pickAsset('music') : null
 
   if ((spec.structure ?? 'overlay') === 'cuts') {
-    await renderCuts(draft, spec, broll, music, workdir, setProgress)
+    // The reference format alternates DIFFERENT highlights per hype burst,
+    // so cuts draws one rotated asset per burst (repeating only when the
+    // library has fewer files than bursts).
+    const burstCount = buildCutsTimeline(spec.chat).segments.filter((s) => s.type === 'broll').length
+    const brolls: Asset[] = []
+    for (let i = 0; i < burstCount; i++) {
+      const asset = pickAsset('broll', spec.brollTag)
+      if (!asset) throw noBroll()
+      brolls.push(asset)
+    }
+    await renderCuts(draft, spec, brolls, music, workdir, setProgress)
   } else {
+    const broll = pickAsset('broll', spec.brollTag)
+    if (!broll) throw noBroll()
     await renderOverlay(draft, spec, broll, music, workdir, setProgress)
   }
 }
@@ -102,7 +112,7 @@ async function renderOverlay(
 async function renderCuts(
   draft: Draft,
   spec: ClipSpec,
-  broll: Asset,
+  brolls: Asset[],
   music: Asset | null,
   workdir: string,
   setProgress: ProgressFn,
@@ -124,32 +134,43 @@ async function renderCuts(
 
   setProgress(0.35, 'encoding')
   const caps = await probeFfmpeg()
-  const brollPath = path.join(PROJECT_ROOT, broll.path)
-  const brollDurS = broll.durationS ?? (await probeMedia(brollPath)).durationS ?? 8
 
-  const args: string[] = ['-y', '-hide_banner', '-i', brollPath]
+  // One input per unique b-roll file; bursts index into `brolls` in order.
+  const brollInputs = new Map<string, { input: number; durS: number; uses: number }>()
+  const args: string[] = ['-y', '-hide_banner']
+  for (const asset of brolls) {
+    if (brollInputs.has(asset.path)) continue
+    const full = path.join(PROJECT_ROOT, asset.path)
+    const durS = asset.durationS ?? (await probeMedia(full)).durationS ?? 8
+    brollInputs.set(asset.path, { input: brollInputs.size, durS, uses: 0 })
+    args.push('-i', full)
+  }
+  const stillBase = brollInputs.size
   const stillInputs = new Map<number, number>()
   for (const segment of chatSegments) {
     if (stillInputs.has(segment.visibleCount)) continue
-    stillInputs.set(segment.visibleCount, stillInputs.size + 1)
+    stillInputs.set(segment.visibleCount, stillBase + stillInputs.size)
     args.push('-loop', '1', '-t', segment.durS.toFixed(3), '-i',
       path.join(workdir, `chat_${String(segment.visibleCount).padStart(2, '0')}.png`))
   }
-  const hookInput = 1 + stillInputs.size
+  const hookInput = stillBase + stillInputs.size
   args.push('-i', path.join(workdir, 'hook.png'))
   if (music) args.push('-i', path.join(PROJECT_ROOT, music.path))
 
-  // Each b-roll beat samples a different offset so bursts don't repeat.
   const filters: string[] = []
   const labels: string[] = []
-  let brollIndex = 0
+  let burst = 0
   timeline.segments.forEach((segment, i) => {
     if (segment.type === 'broll') {
-      let start = (brollIndex * 6.7) % Math.max(brollDurS - segment.durS, 0.01)
-      if (start + segment.durS > brollDurS) start = 0
-      brollIndex++
+      const source = brollInputs.get(brolls[burst].path)!
+      burst++
+      // When the library is smaller than the burst count the same file
+      // repeats — sample a later offset so the beat still looks different.
+      let start = (source.uses * 6.7) % Math.max(source.durS - segment.durS, 0.01)
+      if (start + segment.durS > source.durS) start = 0
+      source.uses++
       filters.push(
-        `[0:v]trim=start=${start.toFixed(3)}:duration=${segment.durS.toFixed(3)},setpts=PTS-STARTPTS,${NORM}[s${i}]`,
+        `[${source.input}:v]trim=start=${start.toFixed(3)}:duration=${segment.durS.toFixed(3)},setpts=PTS-STARTPTS,${NORM}[s${i}]`,
       )
     } else {
       const input = stillInputs.get(segment.visibleCount)!
