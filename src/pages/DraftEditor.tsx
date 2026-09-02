@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { Draft } from '@shared/formats/draft'
 import { SPEC_SCHEMAS, type Format } from '@shared/formats/draft'
-import { buildClipTimeline } from '@shared/timeline'
+import { buildClipTimeline, buildCutsTimeline } from '@shared/timeline'
 import type { ClipSpec } from '@shared/formats/clip'
 import DraftPreview from '../components/studio/DraftPreview'
 import { api } from '../lib/api'
@@ -45,7 +45,23 @@ export default function DraftEditor() {
 
   const timeline = useMemo(() => {
     if (draft?.format !== 'clip' || !parsed.spec) return null
-    return buildClipTimeline((parsed.spec as ClipSpec).chat)
+    const spec = parsed.spec as ClipSpec
+    if ((spec.structure ?? 'overlay') === 'cuts') {
+      // Scrub through the cuts segments (b-roll beats keep the previous count).
+      let t = 0
+      const states = buildCutsTimeline(spec.chat).segments.map((segment) => {
+        const state = {
+          visibleCount: segment.visibleCount,
+          typing: false,
+          tStartS: Math.round(t * 1000) / 1000,
+          tEndS: Math.round((t + segment.durS) * 1000) / 1000,
+        }
+        t += segment.durS
+        return state
+      })
+      return { states, durationS: Math.round(t * 1000) / 1000 }
+    }
+    return buildClipTimeline(spec.chat)
   }, [draft, parsed.spec])
 
   if (!draft) return <p className="text-neutral-500">Loading…</p>

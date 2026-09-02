@@ -34,6 +34,15 @@ export default function DraftPreview({
     return <Scaled height={height}>{slide && <SlideCard slide={slide} />}</Scaled>
   }
   const spec = draft.spec as ClipSpec
+  // Match what the renderer produces: cuts = full-screen chat between
+  // b-roll bursts; overlay = floating card over the b-roll.
+  if ((spec.structure ?? 'overlay') === 'cuts') {
+    return (
+      <Scaled height={height}>
+        <ChatScreen spec={spec.chat} mode="full" visibleCount={visibleCount} />
+      </Scaled>
+    )
+  }
   return (
     <Scaled height={height}>
       <div style={{ width: 540, height: 960, background: '#212121' }}>
