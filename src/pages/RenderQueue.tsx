@@ -208,17 +208,28 @@ export default function RenderQueue() {
 
       <Section title="Exported" count={groups.exported.length}>
         {groups.exported.map(({ latest: job, count }) => (
-          <Link
+          <div
             key={job.draft_id}
-            to="/library"
-            className="group flex items-center gap-3 rounded-xl border border-neutral-900 px-3 py-2 hover:border-neutral-700"
+            className="flex items-center gap-3 rounded-xl border border-neutral-900 px-3 py-2"
           >
             <Media job={job} height={56} compact />
             <span className="min-w-0 flex-1 truncate text-sm text-neutral-300">{job.caption}</span>
             <span className="shrink-0 text-xs text-neutral-600">{metaLine(job, count)}</span>
             <span className="shrink-0 text-xs text-emerald-500">exported ✓</span>
-            <span className="shrink-0 text-xs text-neutral-500 group-hover:text-white">Library →</span>
-          </Link>
+            {job.outputs.length > 0 && (
+              <button
+                disabled={busyId === job.draft_id}
+                onClick={() => act(job.draft_id, () => api.exportJob(job.id))}
+                title="Replace the Library copy with this render"
+                className="shrink-0 rounded-lg border border-neutral-800 px-2 py-1 text-xs text-neutral-400 hover:border-neutral-600 hover:text-white disabled:opacity-50"
+              >
+                Re-export
+              </button>
+            )}
+            <Link to="/library" className="shrink-0 text-xs text-neutral-500 hover:text-white">
+              Library →
+            </Link>
+          </div>
         ))}
       </Section>
     </div>
