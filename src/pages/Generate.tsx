@@ -5,7 +5,7 @@ import { api } from '../lib/api'
 const FORMAT_CARDS = [
   { key: 'carousel', title: 'Chat carousel', blurb: '2-3 chat screenshots as a photo post. Cheapest, 100-300K view ceiling.' },
   { key: 'slideshow', title: 'Slideshow', blurb: 'Text-forward 9:16 slides: shoot your shot, comedy, date ideas.' },
-  { key: 'clip', title: '"Take notes" clip', blurb: '15-40s video over b-roll, chat reveals message by message.' },
+  { key: 'clip', title: '"Take notes" clip', blurb: '15-40s video: chat card over b-roll, or full screens hard-cut with hype bursts.' },
 ] as const
 
 const STYLES = [
@@ -14,10 +14,17 @@ const STYLES = [
   { key: 'date_ideas', label: 'Date ideas' },
 ] as const
 
+const STRUCTURES = [
+  { key: 'mix', label: 'Mix', hint: 'Claude elige por variante' },
+  { key: 'overlay', label: 'Overlay', hint: 'tarjeta de chat sobre b-roll continuo' },
+  { key: 'cuts', label: 'Cuts', hint: 'pantallas de chat + ráfagas de b-roll a corte' },
+] as const
+
 export default function Generate() {
   const navigate = useNavigate()
   const [format, setFormat] = useState<'carousel' | 'slideshow' | 'clip'>('carousel')
   const [style, setStyle] = useState<(typeof STYLES)[number]['key']>('shoot_your_shot')
+  const [structure, setStructure] = useState<(typeof STRUCTURES)[number]['key']>('mix')
   const [brief, setBrief] = useState('')
   const [count, setCount] = useState(5)
   const [serial, setSerial] = useState(false)
@@ -28,7 +35,14 @@ export default function Generate() {
     setBusy(true)
     setError(null)
     try {
-      const { drafts } = await api.generate({ format, brief, count, style, serial })
+      const { drafts } = await api.generate({
+        format,
+        brief,
+        count,
+        style,
+        serial,
+        ...(format === 'clip' && structure !== 'mix' ? { structure } : {}),
+      })
       const batchId = drafts[0]?.batchId
       navigate(batchId ? `/batches/${batchId}` : '/drafts')
     } catch (e) {
@@ -67,6 +81,24 @@ export default function Generate() {
               }`}
             >
               {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {format === 'clip' && (
+        <div className="mb-4 flex gap-2">
+          {STRUCTURES.map((s) => (
+            <button
+              key={s.key}
+              onClick={() => setStructure(s.key)}
+              title={s.hint}
+              className={`rounded-lg border px-3 py-1.5 text-sm ${
+                structure === s.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
+              }`}
+            >
+              {s.label}
+              <span className="ml-2 text-xs text-neutral-500">{s.hint}</span>
             </button>
           ))}
         </div>

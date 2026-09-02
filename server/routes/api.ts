@@ -29,6 +29,7 @@ const GenerateBody = z.object({
   brief: z.string().max(2000).default(''),
   count: z.number().int().min(1).max(10).default(5),
   style: z.enum(SLIDESHOW_STYLES).optional(),
+  structure: z.enum(['overlay', 'cuts']).optional(),
   serial: z.boolean().default(false),
 })
 

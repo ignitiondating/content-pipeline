@@ -51,7 +51,14 @@ export interface SpecResponse {
 }
 
 export const api = {
-  generate: (body: { format: string; brief: string; count: number; style?: string; serial: boolean }) =>
+  generate: (body: {
+    format: string
+    brief: string
+    count: number
+    style?: string
+    structure?: string
+    serial: boolean
+  }) =>
     request<{ drafts: Draft[] }>('/api/generate', { method: 'POST', body: JSON.stringify(body) }),
   drafts: (query: Record<string, string> = {}) =>
     request<{ drafts: Draft[] }>(`/api/drafts?${new URLSearchParams(query)}`),

@@ -1,14 +1,26 @@
+import { z } from 'zod'
 import { ClipSpecSchema } from '../../../shared/formats/clip'
 import { STYLE_GUIDE } from '../styleGuide'
 import { avoidBlock, briefBlock, variantsSchema } from './common'
 
-export function buildClipPrompt(brief: string, count: number, avoidHooks: string[]) {
+export function buildClipPrompt(
+  brief: string,
+  count: number,
+  avoidHooks: string[],
+  structure?: 'overlay' | 'cuts',
+) {
+  const schema = structure
+    ? variantsSchema(ClipSpecSchema.extend({ structure: z.literal(structure) }))
+    : variantsSchema(ClipSpecSchema)
+  const structureLine = structure
+    ? `Use structure "${structure}" for EVERY variant.`
+    : 'Two structures, pick per variant (mix them across a batch):'
   return {
     toolName: 'submit_clips',
-    schema: variantsSchema(ClipSpecSchema),
+    schema,
     system: STYLE_GUIDE,
     user: [
-      `FORMAT: 15-40 second vertical clip. Two structures, pick per variant (mix them across a batch):
+      `FORMAT: 15-40 second vertical clip. ${structureLine}
 - structure "overlay": continuous b-roll with a floating chat card revealing message by message. Lesson energy.
 - structure "cuts": full-screen chat screenshots HARD-CUT with 2-3s b-roll hype bursts after every exchange — the payoff of each exchange earns the hype cut. Highlight-reel energy.
 - hook: instruction framing, max ~50 chars: "Texting huzz *take notes*", "How to revive a dry convo *open your notebook*". This is THE retention device.
