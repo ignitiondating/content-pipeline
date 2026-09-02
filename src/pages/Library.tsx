@@ -32,7 +32,6 @@ export default function Library() {
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
         {items.map((item) => {
           const media = item.files.filter((f) => f !== 'caption.txt')
-          const thumb = media.find((f) => f.endsWith('.png'))
           const video = media.find((f) => f.endsWith('.mp4'))
           return (
             <div key={item.id} className="rounded-2xl border border-neutral-800 p-4">
@@ -43,7 +42,13 @@ export default function Library() {
               {video ? (
                 <video src={fileUrl(item, video)} controls className="mb-3 max-h-72 w-full rounded-xl bg-black" />
               ) : (
-                thumb && <img src={fileUrl(item, thumb)} alt="" className="mb-3 max-h-72 rounded-xl" />
+                <div className="mb-3 flex gap-2 overflow-x-auto rounded-xl bg-neutral-900 p-2">
+                  {media
+                    .filter((f) => f.endsWith('.png'))
+                    .map((f) => (
+                      <img key={f} src={fileUrl(item, f)} alt="" className="h-64 shrink-0 rounded-lg" />
+                    ))}
+                </div>
               )}
               <div className="mb-2 text-sm font-medium">{item.caption}</div>
               <div className="mb-3 flex flex-wrap gap-2 text-xs">
