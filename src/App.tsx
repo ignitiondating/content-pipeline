@@ -7,6 +7,7 @@ import RenderQueue from './pages/RenderQueue'
 import Library from './pages/Library'
 import Assets from './pages/Assets'
 import Settings from './pages/Settings'
+import PipelineSteps from './components/studio/PipelineSteps'
 import RenderChat from './renderRoutes/RenderChat'
 import RenderSlide from './renderRoutes/RenderSlide'
 import RenderOverlay from './renderRoutes/RenderOverlay'
@@ -58,6 +59,7 @@ export default function App() {
         </nav>
       </aside>
       <main className="flex-1 overflow-x-hidden p-6">
+        <PipelineSteps />
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/generate" element={<Generate />} />

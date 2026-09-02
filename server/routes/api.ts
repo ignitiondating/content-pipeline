@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { getDb } from '../db/index'
 import { FORMATS, DRAFT_STATUSES } from '../../shared/formats/draft'
 import { SLIDESHOW_STYLES } from '../../shared/formats/slideshow'
 import { buildClipTimeline } from '../../shared/timeline'
@@ -177,6 +178,14 @@ api.put('/settings', async (c) => {
   const body = z.record(z.string(), z.string()).parse(await c.req.json())
   for (const [key, value] of Object.entries(body)) setSetting(key, value)
   return c.json({ settings: allSettings() })
+})
+
+/** Lightweight status counts for the pipeline steps bar. */
+api.get('/counts', (c) => {
+  const active = getDb()
+    .prepare("SELECT COUNT(*) AS n FROM jobs WHERE status IN ('queued','running')")
+    .get() as { n: number }
+  return c.json({ drafts: statusCounts(), activeJobs: active.n })
 })
 
 api.get('/health', async (c) => {

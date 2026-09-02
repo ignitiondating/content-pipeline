@@ -81,6 +81,7 @@ export const api = {
   assets: () => request<{ assets: AssetItem[] }>('/api/assets'),
   rescanAssets: () =>
     request<{ added: number; missing: number; total: number }>('/api/assets/rescan', { method: 'POST' }),
+  counts: () => request<{ drafts: Record<string, number>; activeJobs: number }>('/api/counts'),
   examples: () => request<{ examples: Examples }>('/api/examples'),
   saveExamples: (examples: Examples) =>
     request<{ examples: Examples }>('/api/examples', { method: 'PUT', body: JSON.stringify(examples) }),
