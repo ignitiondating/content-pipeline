@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { CHAT_CANVAS } from '@shared/formats/chat'
+import { DEFAULT_EXAMPLES, type Examples } from '@shared/examples'
 import ChatScreen from '../components/chat/ChatScreen'
 import SlideCard from '../components/slide/SlideCard'
 import Scaled from '../components/studio/Scaled'
-import { EXAMPLE_CHAT, EXAMPLE_HOOK, EXAMPLE_SLIDES } from '../lib/examples'
 import { api } from '../lib/api'
 
 const FORMAT_CARDS = [
@@ -28,7 +29,9 @@ type FormatKey = (typeof FORMAT_CARDS)[number]['key']
 type StyleKey = (typeof STYLES)[number]['key']
 type StructureKey = (typeof STRUCTURES)[number]['key']
 
-function HookText() {
+const PREVIEW_H = 560
+
+function HookText({ hook }: { hook: string }) {
   return (
     <div
       style={{
@@ -52,56 +55,105 @@ function HookText() {
           textShadow: '2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000, 0 3px 0 #000',
         }}
       >
-        {EXAMPLE_HOOK}
+        {hook}
       </div>
     </div>
   )
 }
 
-function OverlayExample({ height }: { height: number }) {
+function OverlayExample({ examples, height }: { examples: Examples; height: number }) {
   return (
     <Scaled height={height}>
-      <div style={{ background: '#212121', position: 'relative' }}>
-        <ChatScreen spec={EXAMPLE_CHAT} mode="card" visibleCount={3} showTyping />
-        <HookText />
+      <div
+        style={{
+          width: CHAT_CANVAS.width,
+          height: CHAT_CANVAS.height,
+          background: '#212121',
+          position: 'relative',
+        }}
+      >
+        <ChatScreen spec={examples.clipChat} mode="card" visibleCount={3} showTyping />
+        <HookText hook={examples.hook} />
       </div>
     </Scaled>
   )
 }
 
-function CutsExample({ height }: { height: number }) {
+function CutsExample({ examples, height }: { examples: Examples; height: number }) {
   return (
     <Scaled height={height}>
-      <ChatScreen spec={EXAMPLE_CHAT} mode="full" visibleCount={3} />
+      <ChatScreen spec={examples.clipChat} mode="full" visibleCount={3} />
     </Scaled>
   )
 }
 
+/** Preview with ‹ › arrows when the example has more than one slide. */
+function Pager({ slides }: { slides: ReactNode[] }) {
+  const [index, setIndex] = useState(0)
+  const shown = Math.min(index, slides.length - 1)
+  return (
+    <div>
+      {slides[shown]}
+      {slides.length > 1 && (
+        <div className="mt-2 flex items-center justify-center gap-3 text-sm">
+          <button
+            onClick={() => setIndex((shown - 1 + slides.length) % slides.length)}
+            className="h-8 w-8 rounded-lg border border-neutral-700 hover:border-neutral-500"
+            aria-label="Previous slide"
+          >
+            ‹
+          </button>
+          <span className="tabular-nums text-neutral-500">
+            {shown + 1} / {slides.length}
+          </span>
+          <button
+            onClick={() => setIndex((shown + 1) % slides.length)}
+            className="h-8 w-8 rounded-lg border border-neutral-700 hover:border-neutral-500"
+            aria-label="Next slide"
+          >
+            ›
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ExamplePanel({
+  examples,
   format,
   style,
   structure,
   serial,
 }: {
+  examples: Examples
   format: FormatKey
   style: StyleKey
   structure: StructureKey
   serial: boolean
 }) {
-  let preview
+  let preview: ReactNode
   let caption: string
   if (format === 'carousel') {
     preview = (
-      <Scaled height={520}>
-        <ChatScreen spec={EXAMPLE_CHAT} mode="full" />
-      </Scaled>
+      <Pager
+        slides={examples.carousel.map((chat, i) => (
+          <Scaled key={i} height={PREVIEW_H}>
+            <ChatScreen spec={chat} mode="full" />
+          </Scaled>
+        ))}
+      />
     )
     caption = 'Fake iMessage screenshots, 1080×1920 PNGs. Posted as a TikTok photo carousel with a question caption.'
   } else if (format === 'slideshow') {
     preview = (
-      <Scaled height={520}>
-        <SlideCard slide={EXAMPLE_SLIDES[style]} />
-      </Scaled>
+      <Pager
+        slides={examples.slideshow[style].map((slide, i) => (
+          <Scaled key={i} height={PREVIEW_H}>
+            <SlideCard slide={slide} />
+          </Scaled>
+        ))}
+      />
     )
     caption =
       style === 'shoot_your_shot'
@@ -110,20 +162,20 @@ function ExamplePanel({
           ? 'An escalating joke about texting culture, punchline on the last slide.'
           : 'One concrete, cheap date idea per slide — engineered for saves.'
   } else if (structure === 'overlay') {
-    preview = <OverlayExample height={520} />
+    preview = <OverlayExample examples={examples} height={PREVIEW_H} />
     caption = 'Chat card floats over continuous b-roll; messages reveal one by one with a typing indicator.'
   } else if (structure === 'cuts') {
-    preview = <CutsExample height={520} />
+    preview = <CutsExample examples={examples} height={PREVIEW_H} />
     caption = 'Full-screen chat cuts hard against 2-3s b-roll hype bursts after every exchange. Hook rides the intro.'
   } else {
     preview = (
-      <div className="flex gap-3">
+      <div className="flex gap-4">
         <div>
-          <OverlayExample height={330} />
+          <OverlayExample examples={examples} height={PREVIEW_H * 0.62} />
           <div className="mt-1 text-center text-xs text-neutral-500">overlay</div>
         </div>
         <div>
-          <CutsExample height={330} />
+          <CutsExample examples={examples} height={PREVIEW_H * 0.62} />
           <div className="mt-1 text-center text-xs text-neutral-500">cuts</div>
         </div>
       </div>
@@ -134,10 +186,10 @@ function ExamplePanel({
   return (
     <div className="sticky top-6">
       <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Example</div>
-      {preview}
-      <p className="mt-3 max-w-[340px] text-sm text-neutral-400">{caption}</p>
+      <div className="flex justify-center">{preview}</div>
+      <p className="mt-3 text-sm text-neutral-400">{caption}</p>
       {serial && (
-        <p className="mt-2 max-w-[340px] rounded-lg bg-wing-950/40 p-2 text-xs text-wing-400">
+        <p className="mt-2 rounded-lg bg-wing-950/40 p-2 text-xs text-wing-400">
           Serial: part 1 cuts on a cliffhanger and its caption ends with{' '}
           <span className="font-semibold">comment "WORD" for part 2 — link in bio</span>; part 2 pays it off.
         </p>
@@ -148,6 +200,7 @@ function ExamplePanel({
 
 export default function Generate() {
   const navigate = useNavigate()
+  const [examples, setExamples] = useState<Examples>(DEFAULT_EXAMPLES)
   const [format, setFormat] = useState<FormatKey>('carousel')
   const [style, setStyle] = useState<StyleKey>('shoot_your_shot')
   const [structure, setStructure] = useState<StructureKey>('mix')
@@ -156,6 +209,10 @@ export default function Generate() {
   const [serial, setSerial] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.examples().then((r) => setExamples(r.examples)).catch(() => {})
+  }, [])
 
   const submit = async () => {
     setBusy(true)
@@ -179,8 +236,8 @@ export default function Generate() {
   }
 
   return (
-    <div className="flex gap-10">
-      <div className="max-w-2xl flex-1">
+    <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
+      <div>
         <h1 className="mb-6 text-2xl font-bold">Generate</h1>
         <div className="mb-4 grid grid-cols-3 gap-3">
           {FORMAT_CARDS.map((card) => (
@@ -198,12 +255,12 @@ export default function Generate() {
         </div>
 
         {format === 'slideshow' && (
-          <div className="mb-4 flex gap-2">
+          <div className="mb-4 grid grid-cols-3 gap-3">
             {STYLES.map((s) => (
               <button
                 key={s.key}
                 onClick={() => setStyle(s.key)}
-                className={`rounded-lg border px-3 py-1.5 text-sm ${
+                className={`rounded-lg border px-3 py-2 text-sm ${
                   style === s.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
                 }`}
               >
@@ -214,7 +271,7 @@ export default function Generate() {
         )}
 
         {format === 'clip' && (
-          <div className="mb-4 flex gap-2">
+          <div className="mb-4 grid grid-cols-3 gap-3">
             {STRUCTURES.map((s) => (
               <button
                 key={s.key}
@@ -266,8 +323,15 @@ export default function Generate() {
         </button>
       </div>
 
-      <div className="hidden shrink-0 lg:block">
-        <ExamplePanel format={format} style={style} structure={structure} serial={serial} />
+      <div className="hidden lg:block">
+        <ExamplePanel
+          key={`${format}-${style}-${structure}`}
+          examples={examples}
+          format={format}
+          style={style}
+          structure={structure}
+          serial={serial}
+        />
       </div>
     </div>
   )

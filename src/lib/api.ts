@@ -1,5 +1,6 @@
 import type { Draft } from '@shared/formats/draft'
 import type { TimelineState } from '@shared/timeline'
+import type { Examples } from '@shared/examples'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -80,6 +81,9 @@ export const api = {
   assets: () => request<{ assets: AssetItem[] }>('/api/assets'),
   rescanAssets: () =>
     request<{ added: number; missing: number; total: number }>('/api/assets/rescan', { method: 'POST' }),
+  examples: () => request<{ examples: Examples }>('/api/examples'),
+  saveExamples: (examples: Examples) =>
+    request<{ examples: Examples }>('/api/examples', { method: 'PUT', body: JSON.stringify(examples) }),
   settings: () =>
     request<{ settings: Record<string, string>; models: string[]; apiKeySet: boolean }>('/api/settings'),
   saveSettings: (settings: Record<string, string>) =>

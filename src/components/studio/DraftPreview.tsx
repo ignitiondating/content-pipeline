@@ -36,7 +36,7 @@ export default function DraftPreview({
   const spec = draft.spec as ClipSpec
   return (
     <Scaled height={height}>
-      <div style={{ background: '#212121' }}>
+      <div style={{ width: 540, height: 960, background: '#212121' }}>
         <ChatScreen spec={spec.chat} mode="card" visibleCount={visibleCount} showTyping={showTyping} />
       </div>
     </Scaled>

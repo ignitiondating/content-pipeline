@@ -3,10 +3,11 @@ import { z } from 'zod'
 import { FORMATS, DRAFT_STATUSES } from '../../shared/formats/draft'
 import { SLIDESHOW_STYLES } from '../../shared/formats/slideshow'
 import { buildClipTimeline } from '../../shared/timeline'
+import { DEFAULT_EXAMPLES, ExamplesSchema } from '../../shared/examples'
 import { zodIssues } from '../../shared/validate'
 import { listAssets, rescanAssets } from '../assets/catalog'
 import { chromiumAvailable } from '../capture/browser'
-import { allSettings, getDraft, listDrafts, setSetting, statusCounts, updateDraft } from '../db/repo'
+import { allSettings, getDraft, getSetting, listDrafts, setSetting, statusCounts, updateDraft } from '../db/repo'
 import { MODELS } from '../generate/client'
 import { generateBatch, regenerateDraft } from '../generate/service'
 import { probeFfmpeg } from '../render/ffmpeg'
@@ -136,6 +137,31 @@ api.get('/assets', (c) => c.json({ assets: listAssets() }))
 api.post('/assets/rescan', async (c) => {
   try {
     return c.json(await rescanAssets())
+  } catch (error) {
+    return c.json({ error: asError(error) }, 400)
+  }
+})
+
+// ---- examples (Generate page sample content, persisted in settings) ------
+
+api.get('/examples', (c) => {
+  const stored = getSetting('examples')
+  if (stored) {
+    try {
+      return c.json({ examples: ExamplesSchema.parse(JSON.parse(stored)) })
+    } catch {
+      // fall through and re-seed when the stored value no longer validates
+    }
+  }
+  setSetting('examples', JSON.stringify(DEFAULT_EXAMPLES))
+  return c.json({ examples: DEFAULT_EXAMPLES })
+})
+
+api.put('/examples', async (c) => {
+  try {
+    const examples = ExamplesSchema.parse(await c.req.json())
+    setSetting('examples', JSON.stringify(examples))
+    return c.json({ examples })
   } catch (error) {
     return c.json({ error: asError(error) }, 400)
   }
