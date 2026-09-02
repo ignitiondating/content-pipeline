@@ -1,7 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CHAT_CANVAS } from '@shared/formats/chat'
 import { DEFAULT_EXAMPLES, type Examples } from '@shared/examples'
+import { buildClipTimeline, buildCutsTimeline } from '@shared/timeline'
 import ChatScreen from '../components/chat/ChatScreen'
 import SlideCard from '../components/slide/SlideCard'
 import Scaled from '../components/studio/Scaled'
@@ -61,7 +62,25 @@ function HookText({ hook }: { hook: string }) {
   )
 }
 
+/** Loops through a list of step durations (seconds), returning the active index. */
+function useLoop(durationsS: number[]): number {
+  const [index, setIndex] = useState(0)
+  const step = Math.min(index, durationsS.length - 1)
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setIndex((step + 1) % durationsS.length),
+      Math.max(durationsS[step], 0.2) * 1000,
+    )
+    return () => clearTimeout(timer)
+  }, [step, durationsS])
+  return step
+}
+
+/** Plays the real overlay timeline in a loop: same solver the renderer uses. */
 function OverlayExample({ examples, height }: { examples: Examples; height: number }) {
+  const timeline = useMemo(() => buildClipTimeline(examples.clipChat), [examples])
+  const durations = useMemo(() => timeline.states.map((s) => s.tEndS - s.tStartS), [timeline])
+  const state = timeline.states[useLoop(durations)]
   return (
     <Scaled height={height}>
       <div
@@ -72,17 +91,49 @@ function OverlayExample({ examples, height }: { examples: Examples; height: numb
           position: 'relative',
         }}
       >
-        <ChatScreen spec={examples.clipChat} mode="card" visibleCount={3} showTyping />
+        <ChatScreen spec={examples.clipChat} mode="card" visibleCount={state.visibleCount} showTyping={state.typing} />
         <HookText hook={examples.hook} />
       </div>
     </Scaled>
   )
 }
 
+function BrollPlaceholder() {
+  return (
+    <div
+      style={{
+        width: CHAT_CANVAS.width,
+        height: CHAT_CANVAS.height,
+        background: 'linear-gradient(160deg,#2a2a2e,#151517)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+      }}
+    >
+      <div style={{ fontSize: 90 }}>🏀</div>
+      <div style={{ color: '#8D8D93', fontSize: 20, fontWeight: 600 }}>b-roll burst</div>
+    </div>
+  )
+}
+
+/** Plays the cuts timeline in a loop: chat screens hard-cut with b-roll beats. */
 function CutsExample({ examples, height }: { examples: Examples; height: number }) {
+  const timeline = useMemo(() => buildCutsTimeline(examples.clipChat), [examples])
+  const durations = useMemo(() => timeline.segments.map((s) => s.durS), [timeline])
+  const segment = timeline.segments[useLoop(durations)]
+  const isIntro = segment === timeline.segments[0]
   return (
     <Scaled height={height}>
-      <ChatScreen spec={examples.clipChat} mode="full" visibleCount={3} />
+      {segment.type === 'broll' ? (
+        <div style={{ position: 'relative' }}>
+          <BrollPlaceholder />
+          {isIntro && <HookText hook={examples.hook} />}
+        </div>
+      ) : (
+        <ChatScreen spec={examples.clipChat} mode="full" visibleCount={segment.visibleCount} />
+      )}
     </Scaled>
   )
 }
