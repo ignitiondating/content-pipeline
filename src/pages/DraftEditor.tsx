@@ -53,6 +53,7 @@ export default function DraftEditor() {
         const state = {
           visibleCount: segment.visibleCount,
           typing: false,
+          broll: segment.type === 'broll',
           tStartS: Math.round(t * 1000) / 1000,
           tEndS: Math.round((t + segment.durS) * 1000) / 1000,
         }
@@ -176,6 +177,7 @@ export default function DraftEditor() {
             slideIndex={slideIndex}
             visibleCount={clipState?.visibleCount}
             showTyping={clipState?.typing ?? false}
+            brollBeat={(clipState as { broll?: boolean } | null)?.broll ?? false}
           />
           {slideCount > 1 && (
             <div className="mt-3 flex justify-center gap-2">

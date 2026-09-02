@@ -4,6 +4,7 @@ import type { SlideshowSpec } from '@shared/formats/slideshow'
 import type { ClipSpec } from '@shared/formats/clip'
 import ChatScreen from '../chat/ChatScreen'
 import SlideCard from '../slide/SlideCard'
+import BrollPlaceholder from './BrollPlaceholder'
 import Scaled from './Scaled'
 
 interface DraftPreviewProps {
@@ -14,6 +15,8 @@ interface DraftPreviewProps {
   /** For clips: how many messages are revealed (defaults to all). */
   visibleCount?: number
   showTyping?: boolean
+  /** For cuts clips: the scrubbed segment is a b-roll beat, not a chat screen. */
+  brollBeat?: boolean
 }
 
 export default function DraftPreview({
@@ -22,6 +25,7 @@ export default function DraftPreview({
   slideIndex = 0,
   visibleCount,
   showTyping,
+  brollBeat = false,
 }: DraftPreviewProps) {
   if (draft.format === 'carousel') {
     const spec = draft.spec as CarouselSpec
@@ -39,7 +43,11 @@ export default function DraftPreview({
   if ((spec.structure ?? 'overlay') === 'cuts') {
     return (
       <Scaled height={height}>
-        <ChatScreen spec={spec.chat} mode="full" visibleCount={visibleCount} />
+        {brollBeat ? (
+          <BrollPlaceholder />
+        ) : (
+          <ChatScreen spec={spec.chat} mode="full" visibleCount={visibleCount} />
+        )}
       </Scaled>
     )
   }

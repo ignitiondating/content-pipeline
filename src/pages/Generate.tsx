@@ -5,8 +5,9 @@ import { DEFAULT_EXAMPLES, type Examples } from '@shared/examples'
 import { buildClipTimeline, buildCutsTimeline } from '@shared/timeline'
 import ChatScreen from '../components/chat/ChatScreen'
 import SlideCard from '../components/slide/SlideCard'
+import BrollPlaceholder from '../components/studio/BrollPlaceholder'
 import Scaled from '../components/studio/Scaled'
-import { api } from '../lib/api'
+import { api, type AssetItem } from '../lib/api'
 
 const FORMAT_CARDS = [
   { key: 'carousel', title: 'Chat carousel', blurb: '2-3 chat screenshots as a photo post. Cheapest, 100-300K view ceiling.' },
@@ -83,8 +84,29 @@ function useLoop(durationsS: number[]): number {
   return step
 }
 
+function BrollVideo({ url }: { url: string }) {
+  return (
+    <video
+      src={url}
+      autoPlay
+      muted
+      loop
+      playsInline
+      style={{ width: CHAT_CANVAS.width, height: CHAT_CANVAS.height, objectFit: 'cover' }}
+    />
+  )
+}
+
 /** Plays the real overlay timeline in a loop: same solver the renderer uses. */
-function OverlayExample({ examples, height }: { examples: Examples; height: number }) {
+function OverlayExample({
+  examples,
+  videos,
+  height,
+}: {
+  examples: Examples
+  videos: string[]
+  height: number
+}) {
   const timeline = useMemo(() => buildClipTimeline(examples.clipChat), [examples])
   const durations = useMemo(() => timeline.states.map((s) => s.tEndS - s.tStartS), [timeline])
   const state = timeline.states[useLoop(durations)]
@@ -98,44 +120,47 @@ function OverlayExample({ examples, height }: { examples: Examples; height: numb
           position: 'relative',
         }}
       >
-        <ChatScreen spec={examples.clipChat} mode="card" visibleCount={state.visibleCount} showTyping={state.typing} />
+        {videos[0] && (
+          <div style={{ position: 'absolute', inset: 0 }}>
+            <BrollVideo url={videos[0]} />
+          </div>
+        )}
+        <div style={{ position: 'relative' }}>
+          <ChatScreen spec={examples.clipChat} mode="card" visibleCount={state.visibleCount} showTyping={state.typing} />
+        </div>
         <HookText hook={examples.hook} />
       </div>
     </Scaled>
   )
 }
 
-function BrollPlaceholder() {
-  return (
-    <div
-      style={{
-        width: CHAT_CANVAS.width,
-        height: CHAT_CANVAS.height,
-        background: 'linear-gradient(160deg,#2a2a2e,#151517)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 12,
-      }}
-    >
-      <div style={{ fontSize: 90 }}>🏀</div>
-      <div style={{ color: '#8D8D93', fontSize: 20, fontWeight: 600 }}>b-roll burst</div>
-    </div>
-  )
-}
-
 /** Plays the cuts timeline in a loop: chat screens hard-cut with b-roll beats. */
-function CutsExample({ examples, height }: { examples: Examples; height: number }) {
+function CutsExample({
+  examples,
+  videos,
+  height,
+}: {
+  examples: Examples
+  videos: string[]
+  height: number
+}) {
   const timeline = useMemo(() => buildCutsTimeline(examples.clipChat), [examples])
   const durations = useMemo(() => timeline.segments.map((s) => s.durS), [timeline])
-  const segment = timeline.segments[useLoop(durations)]
-  const isIntro = segment === timeline.segments[0]
+  // A different library video per burst, like the renderer's rotation.
+  const burstVideo = useMemo(() => {
+    let burst = 0
+    return timeline.segments.map((s) =>
+      s.type === 'broll' && videos.length ? videos[burst++ % videos.length] : null,
+    )
+  }, [timeline, videos])
+  const index = useLoop(durations)
+  const segment = timeline.segments[index]
+  const isIntro = index === 0
   return (
     <Scaled height={height}>
       {segment.type === 'broll' ? (
         <div style={{ position: 'relative' }}>
-          <BrollPlaceholder />
+          {burstVideo[index] ? <BrollVideo url={burstVideo[index]} /> : <BrollPlaceholder />}
           {isIntro && <HookText hook={examples.hook} />}
         </div>
       ) : (
@@ -179,12 +204,14 @@ function Pager({ slides }: { slides: ReactNode[] }) {
 
 function ExamplePanel({
   examples,
+  videos,
   format,
   style,
   structure,
   serial,
 }: {
   examples: Examples
+  videos: string[]
   format: FormatKey
   style: StyleKey
   structure: StructureKey
@@ -220,20 +247,20 @@ function ExamplePanel({
           ? 'An escalating joke about texting culture, punchline on the last slide.'
           : 'One concrete, cheap date idea per slide — engineered for saves.'
   } else if (structure === 'overlay') {
-    preview = <OverlayExample examples={examples} height={PREVIEW_H} />
+    preview = <OverlayExample examples={examples} videos={videos} height={PREVIEW_H} />
     caption = 'Chat card floats over continuous b-roll; messages reveal one by one with a typing indicator.'
   } else if (structure === 'cuts') {
-    preview = <CutsExample examples={examples} height={PREVIEW_H} />
+    preview = <CutsExample examples={examples} videos={videos} height={PREVIEW_H} />
     caption = 'Full-screen chat cuts hard against 2-3s b-roll hype bursts after every exchange. Hook rides the intro.'
   } else {
     preview = (
       <div className="flex gap-4">
         <div>
-          <OverlayExample examples={examples} height={PREVIEW_H * 0.62} />
+          <OverlayExample examples={examples} videos={videos} height={PREVIEW_H * 0.62} />
           <div className="mt-1 text-center text-xs text-neutral-500">overlay</div>
         </div>
         <div>
-          <CutsExample examples={examples} height={PREVIEW_H * 0.62} />
+          <CutsExample examples={examples} videos={videos} height={PREVIEW_H * 0.62} />
           <div className="mt-1 text-center text-xs text-neutral-500">cuts</div>
         </div>
       </div>
@@ -259,6 +286,7 @@ function ExamplePanel({
 export default function Generate() {
   const navigate = useNavigate()
   const [examples, setExamples] = useState<Examples>(DEFAULT_EXAMPLES)
+  const [brollAssets, setBrollAssets] = useState<AssetItem[]>([])
   const [format, setFormat] = useState<FormatKey>('carousel')
   const [style, setStyle] = useState<StyleKey>('shoot_your_shot')
   const [structure, setStructure] = useState<StructureKey>('mix')
@@ -271,7 +299,18 @@ export default function Generate() {
 
   useEffect(() => {
     api.examples().then((r) => setExamples(r.examples)).catch(() => {})
+    api
+      .assets()
+      .then((r) => setBrollAssets(r.assets.filter((a) => a.kind === 'broll' && !a.missing)))
+      .catch(() => {})
   }, [])
+
+  // Real library footage for the clip example, matching the selected tag.
+  const exampleVideos = useMemo(() => {
+    const tag = brollTag === 'auto' ? 'basketball' : brollTag
+    const tagged = brollAssets.filter((a) => a.tag === tag)
+    return (tagged.length ? tagged : brollAssets).map((a) => `/files/${a.path}`)
+  }, [brollAssets, brollTag])
 
   const submit = async () => {
     setBusy(true)
@@ -401,8 +440,9 @@ export default function Generate() {
 
       <div className="hidden lg:block">
         <ExamplePanel
-          key={`${format}-${style}-${structure}`}
+          key={`${format}-${style}-${structure}-${brollTag}`}
           examples={examples}
+          videos={exampleVideos}
           format={format}
           style={style}
           structure={structure}
