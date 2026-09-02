@@ -15,9 +15,9 @@ const STYLES = [
 ] as const
 
 const STRUCTURES = [
-  { key: 'mix', label: 'Mix', hint: 'Claude elige por variante' },
-  { key: 'overlay', label: 'Overlay', hint: 'tarjeta de chat sobre b-roll continuo' },
-  { key: 'cuts', label: 'Cuts', hint: 'pantallas de chat + ráfagas de b-roll a corte' },
+  { key: 'mix', label: 'Mix', hint: 'Claude picks per variant' },
+  { key: 'overlay', label: 'Overlay', hint: 'chat card over continuous b-roll' },
+  { key: 'cuts', label: 'Cuts', hint: 'full chat screens + hard-cut b-roll bursts' },
 ] as const
 
 export default function Generate() {
