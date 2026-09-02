@@ -92,7 +92,15 @@ function BrollVideo({ url }: { url: string }) {
       muted
       loop
       playsInline
-      style={{ width: CHAT_CANVAS.width, height: CHAT_CANVAS.height, objectFit: 'cover' }}
+      style={{
+        width: CHAT_CANVAS.width,
+        height: CHAT_CANVAS.height,
+        // Tailwind's preflight puts max-width:100% on <video>, which would
+        // clamp the element to the scaled layout width and letterbox it.
+        maxWidth: 'none',
+        objectFit: 'cover',
+        display: 'block',
+      }}
     />
   )
 }
@@ -159,7 +167,7 @@ function CutsExample({
   return (
     <Scaled height={height}>
       {segment.type === 'broll' ? (
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', width: CHAT_CANVAS.width, height: CHAT_CANVAS.height }}>
           {burstVideo[index] ? <BrollVideo url={burstVideo[index]} /> : <BrollPlaceholder />}
           {isIntro && <HookText hook={examples.hook} />}
         </div>
