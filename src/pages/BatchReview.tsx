@@ -74,7 +74,8 @@ export default function BatchReview() {
             <div className="mb-3 flex items-center justify-between text-xs text-neutral-400">
               <span>
                 {draft.format}
-                {draft.format === 'clip' && ` · ${(draft.spec as ClipSpec).structure ?? 'overlay'}`}
+                {draft.format === 'clip' &&
+                  ` · ${(draft.spec as ClipSpec).structure ?? 'overlay'} · ${(draft.spec as ClipSpec).brollTag}`}
                 {draft.partRole && ` · part ${(draft.partIndex ?? 0) + 1} (${draft.partRole})`}
               </span>
               <span className="rounded-full bg-neutral-800 px-2 py-0.5">{draft.status}</span>

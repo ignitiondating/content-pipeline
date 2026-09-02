@@ -26,9 +26,16 @@ const STRUCTURES = [
   { key: 'cuts', label: 'Cuts', hint: 'full chat screens + hard-cut b-roll bursts' },
 ] as const
 
+const BROLL_OPTIONS = [
+  { key: 'auto', label: 'Auto', hint: 'Claude picks per variant' },
+  { key: 'basketball', label: 'Basketball', hint: 'library/broll/basketball' },
+  { key: '3d', label: '3D', hint: 'library/broll/3d' },
+] as const
+
 type FormatKey = (typeof FORMAT_CARDS)[number]['key']
 type StyleKey = (typeof STYLES)[number]['key']
 type StructureKey = (typeof STRUCTURES)[number]['key']
+type BrollKey = (typeof BROLL_OPTIONS)[number]['key']
 
 const PREVIEW_H = 560
 
@@ -255,6 +262,7 @@ export default function Generate() {
   const [format, setFormat] = useState<FormatKey>('carousel')
   const [style, setStyle] = useState<StyleKey>('shoot_your_shot')
   const [structure, setStructure] = useState<StructureKey>('mix')
+  const [brollTag, setBrollTag] = useState<BrollKey>('auto')
   const [brief, setBrief] = useState('')
   const [count, setCount] = useState(5)
   const [serial, setSerial] = useState(false)
@@ -276,6 +284,7 @@ export default function Generate() {
         style,
         serial,
         ...(format === 'clip' && structure !== 'mix' ? { structure } : {}),
+        ...(format === 'clip' && brollTag !== 'auto' ? { brollTag } : {}),
       })
       const batchId = drafts[0]?.batchId
       navigate(batchId ? `/batches/${batchId}` : '/drafts')
@@ -322,20 +331,36 @@ export default function Generate() {
         )}
 
         {format === 'clip' && (
-          <div className="mb-4 grid grid-cols-3 gap-3">
-            {STRUCTURES.map((s) => (
-              <button
-                key={s.key}
-                onClick={() => setStructure(s.key)}
-                className={`rounded-lg border px-3 py-2 text-left text-sm ${
-                  structure === s.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
-                }`}
-              >
-                <span className="block font-medium">{s.label}</span>
-                <span className="mt-0.5 block text-xs text-neutral-500">{s.hint}</span>
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="mb-3 grid grid-cols-3 gap-3">
+              {STRUCTURES.map((s) => (
+                <button
+                  key={s.key}
+                  onClick={() => setStructure(s.key)}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                    structure === s.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
+                  }`}
+                >
+                  <span className="block font-medium">{s.label}</span>
+                  <span className="mt-0.5 block text-xs text-neutral-500">{s.hint}</span>
+                </button>
+              ))}
+            </div>
+            <div className="mb-4 grid grid-cols-3 gap-3">
+              {BROLL_OPTIONS.map((b) => (
+                <button
+                  key={b.key}
+                  onClick={() => setBrollTag(b.key)}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                    brollTag === b.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
+                  }`}
+                >
+                  <span className="block font-medium">B-roll: {b.label}</span>
+                  <span className="mt-0.5 block text-xs text-neutral-500">{b.hint}</span>
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
         <label className="mb-4 flex items-center gap-2 text-sm">

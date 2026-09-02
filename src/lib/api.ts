@@ -58,6 +58,7 @@ export const api = {
     count: number
     style?: string
     structure?: string
+    brollTag?: string
     serial: boolean
   }) =>
     request<{ drafts: Draft[] }>('/api/generate', { method: 'POST', body: JSON.stringify(body) }),

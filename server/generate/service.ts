@@ -18,6 +18,8 @@ export interface GenerateRequest {
   style?: (typeof SLIDESHOW_STYLES)[number]
   /** Only for clips; omitted = Claude mixes both structures across the batch. */
   structure?: 'overlay' | 'cuts'
+  /** Only for clips; omitted = Claude picks the b-roll tag per variant. */
+  brollTag?: 'basketball' | '3d'
   /** Comment-gated serial: generates 2-3 linked parts instead of variants. */
   serial?: boolean
 }
@@ -35,7 +37,13 @@ function promptFor(request: GenerateRequest, avoid: string[]): VariantPrompt {
   if (request.format === 'carousel')
     return buildCarouselPrompt(request.brief, request.count, avoid) as unknown as VariantPrompt
   if (request.format === 'clip')
-    return buildClipPrompt(request.brief, request.count, avoid, request.structure) as unknown as VariantPrompt
+    return buildClipPrompt(
+      request.brief,
+      request.count,
+      avoid,
+      request.structure,
+      request.brollTag,
+    ) as unknown as VariantPrompt
   return buildSlideshowPrompt(
     request.style ?? 'shoot_your_shot',
     request.brief,
@@ -85,8 +93,9 @@ export async function regenerateDraft(draftId: string): Promise<Draft> {
   const avoid = [draft.meta.caption, ...recentHooks(draft.format)]
   const style = draft.format === 'slideshow' ? (draft.spec as SlideshowSpec).style : undefined
   const structure = draft.format === 'clip' ? (draft.spec as ClipSpec).structure : undefined
+  const brollTag = draft.format === 'clip' ? (draft.spec as ClipSpec).brollTag : undefined
   const prompt = promptFor(
-    { format: draft.format, brief: 'Fresh take, same general vibe as before.', count: 1, style, structure },
+    { format: draft.format, brief: 'Fresh take, same general vibe as before.', count: 1, style, structure, brollTag },
     avoid,
   )
   const { variants } = await generateStructured(prompt)
