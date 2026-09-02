@@ -5,9 +5,11 @@ import type { ClipSpec } from '@shared/formats/clip'
 import DraftPreview from '../components/studio/DraftPreview'
 import { api } from '../lib/api'
 
+const STATUS_TABS = ['all', 'draft', 'approved', 'rejected', 'rendered', 'exported', 'posted'] as const
+
 export default function BatchReview() {
   const { batchId } = useParams()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -38,11 +40,34 @@ export default function BatchReview() {
     }
   }
 
+  const activeStatus = searchParams.get('status') ?? 'all'
+
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold">{batchId ? 'Batch review' : 'Drafts'}</h1>
+      <h1 className="mb-4 text-2xl font-bold">{batchId ? 'Batch review' : 'Drafts'}</h1>
+      {!batchId && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setSearchParams(tab === 'all' ? {} : { status: tab })}
+              className={`rounded-lg border px-3 py-1.5 text-sm ${
+                activeStatus === tab ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800 text-neutral-400'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      )}
       {error && <div className="mb-4 rounded-lg bg-red-950 p-3 text-sm text-red-300">{error}</div>}
-      {drafts.length === 0 && <p className="text-neutral-500">Nothing here yet.</p>}
+      {drafts.length === 0 && (
+        <p className="text-neutral-500">
+          {activeStatus === 'all'
+            ? 'Nothing here yet — generate a batch to get started.'
+            : `No drafts with status "${activeStatus}". Switch tabs to see the rest.`}
+        </p>
+      )}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
         {drafts.map((draft) => (
           <div key={draft.id} className="rounded-2xl border border-neutral-800 p-4">
