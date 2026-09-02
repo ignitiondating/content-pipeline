@@ -92,13 +92,12 @@ export default function Generate() {
             <button
               key={s.key}
               onClick={() => setStructure(s.key)}
-              title={s.hint}
-              className={`rounded-lg border px-3 py-1.5 text-sm ${
+              className={`rounded-lg border px-3 py-2 text-left text-sm ${
                 structure === s.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
               }`}
             >
-              {s.label}
-              <span className="ml-2 text-xs text-neutral-500">{s.hint}</span>
+              <span className="block font-medium">{s.label}</span>
+              <span className="mt-0.5 block text-xs text-neutral-500">{s.hint}</span>
             </button>
           ))}
         </div>
