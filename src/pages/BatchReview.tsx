@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { Draft } from '@shared/formats/draft'
 import type { ClipSpec } from '@shared/formats/clip'
 import DraftPreview from '../components/studio/DraftPreview'
@@ -18,6 +18,7 @@ const STATUS_CHIP: Record<string, string> = {
 
 export default function BatchReview() {
   const { batchId } = useParams()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -109,40 +110,40 @@ export default function BatchReview() {
               {draft.meta.gateKeyword && ` · gate: "${draft.meta.gateKeyword}"`}
             </div>
             <div className="flex flex-wrap gap-2 text-sm">
-              {draft.status === 'approved' ? (
-                <button
-                  disabled={busyId === draft.id}
-                  onClick={() => act(draft.id, () => api.patchDraft(draft.id, { status: 'draft' }))}
-                  title="Click to undo"
-                  className="rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold ring-2 ring-emerald-400/40 hover:bg-emerald-500 disabled:opacity-50"
-                >
-                  ✓ Approved
-                </button>
+              {draft.status === 'approved' || draft.status === 'rejected' ? (
+                <>
+                  <span
+                    className={`rounded-lg px-3 py-1.5 font-semibold ${
+                      draft.status === 'approved' ? 'bg-emerald-600' : 'bg-red-900'
+                    }`}
+                  >
+                    {draft.status === 'approved' ? '✓ Approved' : 'Rejected'}
+                  </span>
+                  <button
+                    disabled={busyId === draft.id}
+                    onClick={() => act(draft.id, () => api.patchDraft(draft.id, { status: 'draft' }))}
+                    className="rounded-lg border border-neutral-800 px-3 py-1.5 text-neutral-400 hover:border-neutral-600 hover:text-white disabled:opacity-50"
+                  >
+                    Undo
+                  </button>
+                </>
               ) : (
-                <button
-                  disabled={busyId === draft.id}
-                  onClick={() => act(draft.id, () => api.patchDraft(draft.id, { status: 'approved' }))}
-                  className="rounded-lg bg-emerald-700 px-3 py-1.5 hover:bg-emerald-600 disabled:opacity-50"
-                >
-                  Approve
-                </button>
-              )}
-              {draft.status === 'rejected' ? (
-                <button
-                  disabled={busyId === draft.id}
-                  onClick={() => act(draft.id, () => api.patchDraft(draft.id, { status: 'draft' }))}
-                  className="rounded-lg bg-red-900 px-3 py-1.5 font-semibold hover:bg-red-800 disabled:opacity-50"
-                >
-                  Rejected — undo
-                </button>
-              ) : (
-                <button
-                  disabled={busyId === draft.id}
-                  onClick={() => act(draft.id, () => api.patchDraft(draft.id, { status: 'rejected' }))}
-                  className="rounded-lg border border-neutral-700 px-3 py-1.5 hover:border-neutral-500 disabled:opacity-50"
-                >
-                  Reject
-                </button>
+                <>
+                  <button
+                    disabled={busyId === draft.id}
+                    onClick={() => act(draft.id, () => api.patchDraft(draft.id, { status: 'approved' }))}
+                    className="rounded-lg bg-emerald-700 px-3 py-1.5 hover:bg-emerald-600 disabled:opacity-50"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    disabled={busyId === draft.id}
+                    onClick={() => act(draft.id, () => api.patchDraft(draft.id, { status: 'rejected' }))}
+                    className="rounded-lg border border-neutral-700 px-3 py-1.5 hover:border-neutral-500 disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                </>
               )}
               <Link
                 to={`/drafts/${draft.id}`}
@@ -157,13 +158,28 @@ export default function BatchReview() {
               >
                 {busyId === draft.id ? 'Working…' : 'Regenerate'}
               </button>
-              <button
-                disabled={busyId === draft.id}
-                onClick={() => act(draft.id, () => api.render(draft.id))}
-                className="rounded-lg bg-wing-600 px-3 py-1.5 hover:bg-wing-500 disabled:opacity-50"
-              >
-                Render
-              </button>
+              {draft.status !== 'rejected' && (
+                <button
+                  disabled={busyId === draft.id}
+                  onClick={async () => {
+                    setBusyId(draft.id)
+                    try {
+                      await api.render(draft.id)
+                      navigate('/queue')
+                    } catch (e) {
+                      setError((e as Error).message)
+                      setBusyId(null)
+                    }
+                  }}
+                  className={`rounded-lg px-3 py-1.5 disabled:opacity-50 ${
+                    draft.status === 'approved'
+                      ? 'bg-wing-500 font-semibold hover:bg-wing-400'
+                      : 'bg-wing-600 hover:bg-wing-500'
+                  }`}
+                >
+                  Render →
+                </button>
+              )}
             </div>
           </div>
         ))}
