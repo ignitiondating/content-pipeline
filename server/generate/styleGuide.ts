@@ -16,6 +16,7 @@ VOICE & CAPTION LANGUAGE (use naturally, not all at once):
 BANNED WORDS (never appear in viral posts in this niche): "dating", "relationship", "AI assistant", "artificial intelligence".
 
 CHAT REALISM (for any conversation you write):
+- In message objects, "from" is EXACTLY "me" (our user) or "them" (the other person) — never a name, never anything else.
 - Texts are short, lowercase-ish, no formal punctuation. Real people double-text, use "lol", "omg", "wtf", emoji sparingly.
 - The exchange must have a turn: a bold line, an unexpected answer, a comeback that lands. The last message is the payoff.
 - Contact names are first names or something playful ("Sofia", "gym girl", "Maya 🧿"). Never use a real person's full name.

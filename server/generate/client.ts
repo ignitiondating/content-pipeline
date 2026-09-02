@@ -20,6 +20,16 @@ export function currentModel(): string {
   return getSetting('model') ?? DEFAULT_MODEL
 }
 
+/** Both attempts failed validation; carries the raw output so callers can salvage. */
+export class StructuredOutputError extends Error {
+  constructor(
+    public zodError: z.ZodError,
+    public raw: unknown,
+  ) {
+    super('structured generation failed validation twice')
+  }
+}
+
 /**
  * Structured generation: forces a single tool whose input_schema is derived
  * from the zod schema, validates the tool input, and retries once with the
@@ -36,7 +46,7 @@ export async function generateStructured<T>(opts: {
   const model = opts.model ?? currentModel()
   const inputSchema = z.toJSONSchema(opts.schema, { target: 'draft-7' }) as Anthropic.Tool.InputSchema
 
-  const attempt = async (extraUser?: string): Promise<T> => {
+  const attempt = async (extraUser?: string): Promise<unknown> => {
     const response = await getClient().messages.create({
       model,
       max_tokens: opts.maxTokens ?? 16_000,
@@ -55,17 +65,16 @@ export async function generateStructured<T>(opts: {
       (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',
     )
     if (!toolUse) throw new Error('model returned no tool_use block')
-    return opts.schema.parse(toolUse.input)
+    return toolUse.input
   }
 
-  try {
-    return await attempt()
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return attempt(
-        `Your previous attempt failed validation with these errors, fix them and resubmit:\n${zodIssues(error)}`,
-      )
-    }
-    throw error
-  }
+  const first = opts.schema.safeParse(await attempt())
+  if (first.success) return first.data
+
+  const raw = await attempt(
+    `Your previous attempt failed validation with these errors, fix them and resubmit:\n${zodIssues(first.error)}`,
+  )
+  const second = opts.schema.safeParse(raw)
+  if (second.success) return second.data
+  throw new StructuredOutputError(second.error, raw)
 }

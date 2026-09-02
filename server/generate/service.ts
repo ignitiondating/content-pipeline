@@ -1,10 +1,11 @@
-import type { z } from 'zod'
-import type { AnySpec, Draft, DraftMeta, Format } from '../../shared/formats/draft'
+import { z } from 'zod'
+import { DraftMetaSchema, SPEC_SCHEMAS, type AnySpec, type Draft, type DraftMeta, type Format } from '../../shared/formats/draft'
+import { zodIssues } from '../../shared/validate'
 import type { SlideshowSpec } from '../../shared/formats/slideshow'
 import type { ClipSpec } from '../../shared/formats/clip'
 import { SLIDESHOW_STYLES } from '../../shared/formats/slideshow'
 import { createBatch, createDraft, createSeries, getDraft, recentHooks, updateDraft } from '../db/repo'
-import { currentModel, generateStructured } from './client'
+import { currentModel, generateStructured, StructuredOutputError } from './client'
 import { buildCarouselPrompt } from './prompts/carousel'
 import { buildClipPrompt } from './prompts/clip'
 import { buildSerialPrompt } from './prompts/serial'
@@ -29,6 +30,31 @@ interface VariantPrompt {
   user: string
   toolName: string
   schema: z.ZodType<{ variants: Array<{ spec: AnySpec; meta: DraftMeta }> }>
+}
+
+/**
+ * Runs a variants prompt, salvaging the valid variants when the model gets
+ * one wrong twice in a row — a single bad variant no longer sinks the batch.
+ */
+async function generateVariants(
+  prompt: VariantPrompt,
+  format: Format,
+): Promise<Array<{ spec: AnySpec; meta: DraftMeta }>> {
+  try {
+    return (await generateStructured(prompt)).variants
+  } catch (error) {
+    if (!(error instanceof StructuredOutputError)) throw error
+    const itemSchema = z.object({ spec: SPEC_SCHEMAS[format], meta: DraftMetaSchema })
+    const raw = (error.raw as { variants?: unknown[] })?.variants ?? []
+    const salvaged = raw
+      .map((v) => itemSchema.safeParse(v))
+      .filter((r) => r.success)
+      .map((r) => r.data as { spec: AnySpec; meta: DraftMeta })
+    if (salvaged.length === 0) {
+      throw new Error(`generation failed validation twice: ${zodIssues(error.zodError)}`)
+    }
+    return salvaged
+  }
 }
 
 function promptFor(request: GenerateRequest, avoid: string[]): VariantPrompt {
@@ -74,7 +100,7 @@ export async function generateBatch(request: GenerateRequest): Promise<Draft[]> 
   }
 
   const prompt = promptFor(request, recentHooks(request.format))
-  const { variants } = await generateStructured(prompt)
+  const variants = await generateVariants(prompt, request.format)
   const batchId = createBatch({
     format: request.format,
     brief: request.brief,
@@ -98,7 +124,6 @@ export async function regenerateDraft(draftId: string): Promise<Draft> {
     { format: draft.format, brief: 'Fresh take, same general vibe as before.', count: 1, style, structure, brollTag },
     avoid,
   )
-  const { variants } = await generateStructured(prompt)
-  const [variant] = variants
+  const [variant] = await generateVariants(prompt, draft.format)
   return updateDraft(draftId, { spec: variant.spec, meta: variant.meta, status: 'draft' })
 }
