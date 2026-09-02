@@ -104,7 +104,21 @@ api.post('/render', async (c) => {
   }
 })
 
-api.get('/render', (c) => c.json({ jobs: listJobs() }))
+api.get('/render', (c) => {
+  // Jobs enriched with their draft's identity so the queue can show what
+  // was rendered instead of an opaque id.
+  const jobs = listJobs().map((job) => {
+    const draft = getDraft(job.draft_id)
+    return {
+      ...job,
+      caption: draft?.meta.caption ?? '(draft deleted)',
+      format: draft?.format ?? job.kind,
+      draftStatus: draft?.status ?? 'unknown',
+      outputs: job.status === 'done' ? jobOutputs(job) : [],
+    }
+  })
+  return c.json({ jobs })
+})
 
 api.get('/render/:jobId', (c) => {
   const job = getJob(c.req.param('jobId'))

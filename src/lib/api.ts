@@ -21,6 +21,10 @@ export interface Job {
   message: string | null
   created_at: string
   finished_at: string | null
+  caption: string
+  format: string
+  draftStatus: string
+  outputs: string[]
 }
 
 export interface ExportItem {
