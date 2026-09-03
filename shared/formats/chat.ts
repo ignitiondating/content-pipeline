@@ -66,6 +66,11 @@ export const ChatSpecSchema = z.object({
   theme: z.enum(['light', 'dark']),
   /** Optional; defaults to imessage. Instagram fits story-reply scenarios. */
   skin: z.enum(['imessage', 'instagram']).optional(),
+  /**
+   * Instagram only: open with "You replied to their story" + a story
+   * thumbnail above the first message (the reference-clip opener).
+   */
+  storyReply: z.boolean().optional(),
   contact: z.object({
     name: z.string().min(1).max(30),
     /** Single emoji shown instead of initials in the avatar, optional. */

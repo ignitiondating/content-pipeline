@@ -33,6 +33,7 @@ export function buildClipPrompt(
 - hookPersists: true for lesson-style overlay clips, false for cuts (the hook rides only the intro burst).
 - chat: ONE short exchange, 4-9 messages, sub-40s read time. The payoff message lands last.
 - chat.skin: "instagram" (purple DM bubbles) when the scenario reads as an IG story-reply or DM slide; "imessage" otherwise. Mix across variants.
+- chat.storyReply: true when skin is "instagram" AND the first message is an opener replying to her story (then write message 1 as that reply, e.g. "is your dad a pirate?").
 - brollTag: "basketball" for confident/outcome energy, "3d" for absurd/comedic energy.
 - withMusic: false by default (trending sound is added at post time).
 - meta.caption: outcome or question caption ("did I cook?", "date secured"). Include one outcome hashtag.`,

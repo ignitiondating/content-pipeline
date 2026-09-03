@@ -122,8 +122,14 @@ async function renderCuts(
 
   setProgress(0.05, `capturing ${chatSegments.length} chat screens`)
   // Zoomed-DM screens: only the previous message + the new one, huge.
+  // Instagram story-reply openers get a photo from library/backgrounds.
+  const storyAsset =
+    spec.chat.skin === 'instagram' && spec.chat.storyReply ? pickAsset('background') : null
+  const story = storyAsset ? `&story=${encodeURIComponent(`/files/${storyAsset.path}`)}` : ''
   const captures: CaptureRequest[] = chatSegments.map((segment) => ({
-    route: `/render/chat?specId=${draft.id}&zoom=1&visible=${segment.visibleCount}`,
+    route: `/render/chat?specId=${draft.id}&zoom=1&visible=${segment.visibleCount}${
+      segment.visibleCount <= 2 ? story : ''
+    }`,
     outPath: path.join(workdir, `chat_${String(segment.visibleCount).padStart(2, '0')}.png`),
   }))
   captures.push({

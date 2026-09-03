@@ -12,6 +12,8 @@ interface ChatScreenProps {
    * zoomed-DM look reference clips use.
    */
   mode?: 'full' | 'card' | 'zoom'
+  /** Photo for the story-reply thumbnail; falls back to a gradient card. */
+  storyImageUrl?: string
 }
 
 /** Own-bubble background honoring the optional skin (iMessage vs Instagram). */
@@ -98,7 +100,9 @@ function Bubble({ spec, message, isLast }: { spec: ChatSpec; message: ChatMessag
               background: mine ? meBubbleBg(spec) : theme.bubbleThem,
               color: mine ? theme.bubbleMeText : theme.bubbleThemText,
               borderRadius: 20,
-              [mine ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 6,
+              ...(spec.skin === 'instagram'
+                ? null
+                : { [mine ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 6 }),
               padding: '9px 14px',
               fontSize: 17,
               lineHeight: 1.28,
@@ -237,14 +241,23 @@ function Header({ spec }: { spec: ChatSpec }) {
   )
 }
 
-export default function ChatScreen({ spec, visibleCount, showTyping = false, mode = 'full' }: ChatScreenProps) {
+export default function ChatScreen({
+  spec,
+  visibleCount,
+  showTyping = false,
+  mode = 'full',
+  storyImageUrl,
+}: ChatScreenProps) {
   const theme = CHAT_THEMES[spec.theme]
   const shown = spec.messages.slice(0, visibleCount ?? spec.messages.length)
   const lastIndex = shown.length - 1
+  const instagram = spec.skin === 'instagram'
 
   if (mode === 'zoom') {
     // Previous message + the new one, huge, centered on a bare background.
     const focus = shown.slice(-2)
+    // The story-reply opener stays on screen while message 1 is in frame.
+    const showStory = instagram && spec.storyReply && shown.length <= 2
     return (
       <div
         style={{
@@ -259,6 +272,30 @@ export default function ChatScreen({ spec, visibleCount, showTyping = false, mod
           padding: '0 28px',
         }}
       >
+        {showStory && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 14 }}>
+            <div style={{ color: theme.subtleText, fontSize: 26, fontWeight: 400 }}>
+              You replied to their story
+            </div>
+            <div
+              style={{
+                width: 210,
+                height: 350,
+                borderRadius: 18,
+                overflow: 'hidden',
+                background: 'linear-gradient(200deg,#3a3f52 0%,#22242e 55%,#191a20 100%)',
+              }}
+            >
+              {storyImageUrl && (
+                <img
+                  src={storyImageUrl}
+                  alt=""
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', maxWidth: 'none' }}
+                />
+              )}
+            </div>
+          </div>
+        )}
         {focus.map((message, i) => {
           const mine = message.from === 'me'
           return (
@@ -268,8 +305,12 @@ export default function ChatScreen({ spec, visibleCount, showTyping = false, mod
                   style={{
                     background: mine ? meBubbleBg(spec) : theme.bubbleThem,
                     color: mine ? theme.bubbleMeText : theme.bubbleThemText,
+                    // Instagram bubbles are uniformly pill-rounded; only
+                    // iMessage gets the small tail corner.
                     borderRadius: 34,
-                    [mine ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 10,
+                    ...(instagram
+                      ? null
+                      : { [mine ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 10 }),
                     padding: '18px 26px',
                     fontSize: 31,
                     lineHeight: 1.24,

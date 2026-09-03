@@ -26,6 +26,7 @@ export default function RenderChat() {
           spec={spec.chat}
           mode={params.get('zoom') !== null ? 'zoom' : 'full'}
           visibleCount={visible}
+          storyImageUrl={params.get('story') ?? undefined}
         />
       </div>
     )

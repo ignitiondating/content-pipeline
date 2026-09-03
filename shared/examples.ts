@@ -47,13 +47,17 @@ export const DEFAULT_EXAMPLES: Examples = {
       { from: 'me', text: "we'll find out together 😌" },
     ]),
   ],
-  clipChat: pirateChat([
-    { from: 'me', text: 'is your dad a pirate?' },
-    { from: 'them', text: 'no, why?' },
-    { from: 'me', text: 'because you look like a treasure' },
-    { from: 'them', text: 'omg 💀' },
-    { from: 'them', text: 'ok that actually worked' },
-  ]),
+  clipChat: {
+    ...pirateChat([
+      { from: 'me', text: 'is your dad a pirate?' },
+      { from: 'them', text: 'no, why?' },
+      { from: 'me', text: 'because you look like a treasure' },
+      { from: 'them', text: 'omg 💀' },
+      { from: 'them', text: 'ok that actually worked' },
+    ]),
+    skin: 'instagram',
+    storyReply: true,
+  },
   slideshow: {
     shoot_your_shot: [
       { title: 'how to text huzz *take notes*', lines: ['3 moves, 40 seconds'] },
