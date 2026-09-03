@@ -117,6 +117,7 @@ async function renderCuts(
 ): Promise<void> {
   const timeline = buildCutsTimeline(spec.chat)
   const chatSegments = timeline.segments.filter((s) => s.type === 'chat')
+  const hasPromo = timeline.segments.some((s) => s.type === 'promo')
 
   setProgress(0.05, `capturing ${chatSegments.length} chat screens`)
   // Zoomed-DM screens: only the previous message + the new one, huge.
@@ -130,6 +131,12 @@ async function renderCuts(
     }`,
     outPath: path.join(workdir, `chat_${String(segment.visibleCount).padStart(2, '0')}.png`),
   }))
+  if (hasPromo) {
+    captures.push({
+      route: `/render/promo?specId=${draft.id}`,
+      outPath: path.join(workdir, 'promo.png'),
+    })
+  }
   captures.push({
     route: `/render/overlay?specId=${draft.id}`,
     outPath: path.join(workdir, 'hook.png'),
@@ -158,7 +165,13 @@ async function renderCuts(
     args.push('-loop', '1', '-t', segment.durS.toFixed(3), '-i',
       path.join(workdir, `chat_${String(segment.visibleCount).padStart(2, '0')}.png`))
   }
-  const hookInput = stillBase + stillInputs.size
+  let promoInput = -1
+  if (hasPromo) {
+    const promoDurS = timeline.segments.find((s) => s.type === 'promo')!.durS
+    promoInput = stillBase + stillInputs.size
+    args.push('-loop', '1', '-t', promoDurS.toFixed(3), '-i', path.join(workdir, 'promo.png'))
+  }
+  const hookInput = stillBase + stillInputs.size + (hasPromo ? 1 : 0)
   args.push('-i', path.join(workdir, 'hook.png'))
   if (music) args.push('-i', path.join(PROJECT_ROOT, music.path))
 
@@ -177,6 +190,8 @@ async function renderCuts(
       filters.push(
         `[${source.input}:v]trim=start=${start.toFixed(3)}:duration=${segment.durS.toFixed(3)},setpts=PTS-STARTPTS,${NORM}[s${i}]`,
       )
+    } else if (segment.type === 'promo') {
+      filters.push(`[${promoInput}:v]${NORM},trim=duration=${segment.durS.toFixed(3)}[s${i}]`)
     } else {
       const input = stillInputs.get(segment.visibleCount)!
       filters.push(`[${input}:v]${NORM},trim=duration=${segment.durS.toFixed(3)}[s${i}]`)

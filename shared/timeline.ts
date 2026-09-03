@@ -30,10 +30,21 @@ const round = (v: number) => Math.round(v * 1000) / 1000
 
 /** One hard-cut segment of the 'cuts' clip structure. */
 export interface CutSegment {
-  type: 'broll' | 'chat'
+  type: 'broll' | 'chat' | 'promo'
   /** Messages visible in this chat screen (chat segments only). */
   visibleCount: number
   durS: number
+}
+
+/**
+ * The message the promo segment presents as WingAI's suggestion: the last
+ * own message — the payoff line. Returns -1 when the chat has none.
+ */
+export function promoTargetIndex(chat: ChatSpec): number {
+  for (let i = chat.messages.length - 1; i >= 0; i--) {
+    if (chat.messages[i].from === 'me') return i
+  }
+  return -1
 }
 
 export interface CutsTimeline {
@@ -45,6 +56,8 @@ const CUTS = {
   introS: 2.2,
   burstS: 2.4,
   outroS: 4.0,
+  /** The WingAI-suggests-the-line product moment before the payoff message. */
+  promoS: 2.4,
   chatBaseS: 1.6,
   chatPerCharS: 0.05,
   chatMinS: 2.0,
@@ -63,8 +76,10 @@ export function buildCutsTimeline(chat: ChatSpec): CutsTimeline {
   const holds = chat.messages.map((m) =>
     Math.min(CUTS.chatMaxS, Math.max(CUTS.chatMinS, CUTS.chatBaseS + m.text.length * CUTS.chatPerCharS)),
   )
+  const promoAt = promoTargetIndex(chat)
   const burstCount = Math.floor((chat.messages.length - 1) / CUTS.messagesPerBurst)
-  const fixedS = CUTS.introS + burstCount * CUTS.burstS + CUTS.outroS
+  const fixedS =
+    CUTS.introS + burstCount * CUTS.burstS + (promoAt >= 0 ? CUTS.promoS : 0) + CUTS.outroS
   const holdTotalS = holds.reduce((a, b) => a + b, 0)
 
   const minHolds = CLIP_LIMITS.minDurationS - fixedS
@@ -75,6 +90,9 @@ export function buildCutsTimeline(chat: ChatSpec): CutsTimeline {
 
   const segments: CutSegment[] = [{ type: 'broll', visibleCount: 0, durS: CUTS.introS }]
   chat.messages.forEach((_, i) => {
+    // The product moment: WingAI suggests the payoff line, then the chat
+    // screen reveals it sent — the reference's app-promo beat.
+    if (i === promoAt) segments.push({ type: 'promo', visibleCount: i, durS: CUTS.promoS })
     segments.push({ type: 'chat', visibleCount: i + 1, durS: round(holds[i] * scale) })
     const isLast = i === chat.messages.length - 1
     if (!isLast && (i + 1) % CUTS.messagesPerBurst === 0) {

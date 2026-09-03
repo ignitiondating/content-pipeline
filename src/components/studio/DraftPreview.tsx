@@ -3,6 +3,7 @@ import type { CarouselSpec } from '@shared/formats/carousel'
 import type { SlideshowSpec } from '@shared/formats/slideshow'
 import type { ClipSpec } from '@shared/formats/clip'
 import ChatScreen from '../chat/ChatScreen'
+import PromoScreen from '../chat/PromoScreen'
 import SlideCard from '../slide/SlideCard'
 import BrollPlaceholder from './BrollPlaceholder'
 import Scaled from './Scaled'
@@ -17,6 +18,8 @@ interface DraftPreviewProps {
   showTyping?: boolean
   /** For cuts clips: the scrubbed segment is a b-roll beat, not a chat screen. */
   brollBeat?: boolean
+  /** For cuts clips: the scrubbed segment is the WingAI suggested-reply promo. */
+  promoBeat?: boolean
 }
 
 export default function DraftPreview({
@@ -26,6 +29,7 @@ export default function DraftPreview({
   visibleCount,
   showTyping,
   brollBeat = false,
+  promoBeat = false,
 }: DraftPreviewProps) {
   if (draft.format === 'carousel') {
     const spec = draft.spec as CarouselSpec
@@ -54,6 +58,8 @@ export default function DraftPreview({
       <Scaled height={height}>
         {brollBeat ? (
           <BrollPlaceholder />
+        ) : promoBeat ? (
+          <PromoScreen spec={spec.chat} />
         ) : (
           <ChatScreen spec={spec.chat} mode="zoom" visibleCount={visibleCount} />
         )}

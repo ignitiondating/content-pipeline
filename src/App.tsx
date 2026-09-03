@@ -11,6 +11,7 @@ import PipelineSteps from './components/studio/PipelineSteps'
 import RenderChat from './renderRoutes/RenderChat'
 import RenderSlide from './renderRoutes/RenderSlide'
 import RenderOverlay from './renderRoutes/RenderOverlay'
+import RenderPromo from './renderRoutes/RenderPromo'
 
 const NAV = [
   { to: '/', label: 'Dashboard' },
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/render/chat" element={<RenderChat />} />
         <Route path="/render/slide" element={<RenderSlide />} />
         <Route path="/render/overlay" element={<RenderOverlay />} />
+        <Route path="/render/promo" element={<RenderPromo />} />
       </Routes>
     )
   }

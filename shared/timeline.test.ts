@@ -84,10 +84,14 @@ describe('buildCutsTimeline', () => {
     expect(chats.map((s) => s.visibleCount)).toEqual([1, 2, 3, 4, 5])
   })
 
-  it('inserts hype bursts between exchanges but never right before the outro', () => {
+  it('inserts hype bursts between exchanges and the promo before the payoff message', () => {
     const { segments } = buildCutsTimeline(spec)
     const types = segments.map((s) => s.type).join(',')
-    expect(types).toBe('broll,chat,chat,broll,chat,chat,broll,chat,broll')
+    // Last own message is index 3 ("come over and find out") — the promo
+    // presents it as WingAI's suggestion right before it lands.
+    expect(types).toBe('broll,chat,chat,broll,chat,promo,chat,broll,chat,broll')
+    const promo = segments.find((s) => s.type === 'promo')!
+    expect(promo.visibleCount).toBe(3)
   })
 
   it('keeps the total inside the clip limits', () => {

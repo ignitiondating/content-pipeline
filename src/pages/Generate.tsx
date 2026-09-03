@@ -4,6 +4,7 @@ import { CHAT_CANVAS } from '@shared/formats/chat'
 import { DEFAULT_EXAMPLES, type Examples } from '@shared/examples'
 import { buildClipTimeline, buildCutsTimeline } from '@shared/timeline'
 import ChatScreen from '../components/chat/ChatScreen'
+import PromoScreen from '../components/chat/PromoScreen'
 import SlideCard from '../components/slide/SlideCard'
 import BrollPlaceholder from '../components/studio/BrollPlaceholder'
 import Scaled from '../components/studio/Scaled'
@@ -185,6 +186,8 @@ function CutsExample({
           {burstVideo[index] ? <BrollVideo url={burstVideo[index]} /> : <BrollPlaceholder />}
           {isIntro && <HookText hook={examples.hook} />}
         </div>
+      ) : segment.type === 'promo' ? (
+        <PromoScreen spec={examples.clipChat} />
       ) : (
         <ChatScreen spec={examples.clipChat} mode="zoom" visibleCount={segment.visibleCount} />
       )}
