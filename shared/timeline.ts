@@ -53,6 +53,8 @@ export interface CutsTimeline {
 }
 
 const CUTS = {
+  /** Cuts clips target the reference's exact runtime. */
+  targetS: 33.0,
   introS: 2.2,
   burstS: 2.4,
   outroS: 4.0,
@@ -62,8 +64,9 @@ const CUTS = {
   chatPerCharS: 0.05,
   chatMinS: 2.0,
   chatMaxS: 5.0,
-  /** Scaling can compress chat holds down to this floor when bursts eat the budget. */
+  /** Scaled holds stay within these bounds; tiny/huge chats trade exactness for pacing. */
   chatFloorS: 1.5,
+  chatCeilS: 6.0,
 } as const
 
 /**
@@ -91,11 +94,9 @@ export function buildCutsTimeline(chat: ChatSpec): CutsTimeline {
     CUTS.introS + burstCount * CUTS.burstS + (promoAt >= 0 ? CUTS.promoS : 0) + CUTS.outroS
   const holdTotalS = holds.reduce((a, b) => a + b, 0)
 
-  const minHolds = CLIP_LIMITS.minDurationS - fixedS
-  const maxHolds = CLIP_LIMITS.maxDurationS - fixedS
-  let scale = 1
-  if (holdTotalS > maxHolds) scale = maxHolds / holdTotalS
-  else if (holdTotalS < minHolds) scale = minHolds / holdTotalS
+  // Message holds scale so the clip lands exactly on the reference runtime;
+  // per-hold floor/ceiling means extreme chats land near it instead.
+  const scale = holdTotalS > 0 ? Math.max(0, CUTS.targetS - fixedS) / holdTotalS : 1
 
   const segments: CutSegment[] = [{ type: 'broll', visibleCount: 0, durS: CUTS.introS }]
   chat.messages.forEach((_, i) => {
@@ -105,7 +106,7 @@ export function buildCutsTimeline(chat: ChatSpec): CutsTimeline {
     segments.push({
       type: 'chat',
       visibleCount: i + 1,
-      durS: round(Math.max(CUTS.chatFloorS, holds[i] * scale)),
+      durS: round(Math.min(CUTS.chatCeilS, Math.max(CUTS.chatFloorS, holds[i] * scale))),
     })
     const isLast = i === chat.messages.length - 1
     const fadeInstead = i === 0 && storyFade

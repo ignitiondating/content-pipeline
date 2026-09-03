@@ -100,6 +100,12 @@ describe('buildCutsTimeline', () => {
     expect(types).toBe('broll,chat,chat,broll,chat,broll,promo,chat,broll,chat,broll')
   })
 
+  it('lands exactly on the 33s reference runtime for typical chats', () => {
+    expect(buildCutsTimeline(spec).durationS).toBeCloseTo(33, 1)
+    const story = { ...spec, skin: 'instagram' as const, storyReply: true }
+    expect(buildCutsTimeline(story).durationS).toBeCloseTo(33, 1)
+  })
+
   it('keeps the total inside the clip limits', () => {
     const long = chat(
       Array.from({ length: 7 }, (_, i) => [i % 2 ? 'me' : 'them', 'a fairly long message to inflate the timing here']),

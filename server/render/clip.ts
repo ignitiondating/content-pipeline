@@ -164,7 +164,9 @@ async function renderCuts(
     const full = path.join(PROJECT_ROOT, asset.path)
     const durS = asset.durationS ?? (await probeMedia(full)).durationS ?? 8
     brollInputs.set(asset.path, { input: brollInputs.size, durS, uses: 0 })
-    args.push('-i', full)
+    // Looped so a file shorter than its beat still fills the full duration —
+    // otherwise trims come up short and the clip runs under its target.
+    args.push('-stream_loop', '-1', '-i', full)
   }
   const stillBase = brollInputs.size
   const stillInputs = new Map<number, number>()
