@@ -164,9 +164,7 @@ async function renderCuts(
     const full = path.join(PROJECT_ROOT, asset.path)
     const durS = asset.durationS ?? (await probeMedia(full)).durationS ?? 8
     brollInputs.set(asset.path, { input: brollInputs.size, durS, uses: 0 })
-    // Looped so a file shorter than its beat still fills the full duration —
-    // otherwise trims come up short and the clip runs under its target.
-    args.push('-stream_loop', '-1', '-i', full)
+    args.push('-i', full)
   }
   const stillBase = brollInputs.size
   const stillInputs = new Map<number, number>()
@@ -196,14 +194,23 @@ async function renderCuts(
     if (segment.type === 'broll') {
       const source = brollInputs.get(brolls[burst].path)!
       burst++
-      // When the library is smaller than the burst count the same file
-      // repeats — sample a later offset so the beat still looks different.
-      let start = (source.uses * 6.7) % Math.max(source.durS - segment.durS, 0.01)
-      if (start + segment.durS > source.durS) start = 0
-      source.uses++
-      filters.push(
-        `[${source.input}:v]trim=start=${start.toFixed(3)}:duration=${segment.durS.toFixed(3)},setpts=PTS-STARTPTS,${NORM}[s${i}]`,
-      )
+      if (source.durS <= segment.durS + 0.05) {
+        // File shorter than its beat: stretch it slightly (subtle slow-mo)
+        // instead of looping — a restart mid-beat reads as a glitch.
+        const ratio = segment.durS / Math.max(source.durS, 0.1)
+        filters.push(
+          `[${source.input}:v]setpts=${ratio.toFixed(4)}*(PTS-STARTPTS),${NORM},trim=duration=${segment.durS.toFixed(3)}[s${i}]`,
+        )
+      } else {
+        // When the same longer file repeats, sample a later offset so the
+        // beat still looks different.
+        let start = (source.uses * 6.7) % Math.max(source.durS - segment.durS, 0.01)
+        if (start + segment.durS > source.durS) start = 0
+        source.uses++
+        filters.push(
+          `[${source.input}:v]trim=start=${start.toFixed(3)}:duration=${segment.durS.toFixed(3)},setpts=PTS-STARTPTS,${NORM}[s${i}]`,
+        )
+      }
     } else if (segment.type === 'promo') {
       filters.push(`[${promoInput}:v]${NORM},trim=duration=${segment.durS.toFixed(3)}[s${i}]`)
     } else {
