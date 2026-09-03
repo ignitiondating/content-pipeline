@@ -46,7 +46,7 @@ export default function DraftPreview({
         {brollBeat ? (
           <BrollPlaceholder />
         ) : (
-          <ChatScreen spec={spec.chat} mode="full" visibleCount={visibleCount} />
+          <ChatScreen spec={spec.chat} mode="zoom" visibleCount={visibleCount} />
         )}
       </Scaled>
     )

@@ -56,8 +56,16 @@ export const ChatMessageSchema = z.object({
   timestampDivider: z.string().max(40).optional(),
 })
 
+/** Bubble styling: iMessage blue or Instagram DM purple. */
+export const CHAT_SKINS = {
+  imessage: { bubbleMe: '#0A84FF' },
+  instagram: { bubbleMe: 'linear-gradient(180deg,#9440F5 0%,#7A2BEA 100%)' },
+} as const
+
 export const ChatSpecSchema = z.object({
   theme: z.enum(['light', 'dark']),
+  /** Optional; defaults to imessage. Instagram fits story-reply scenarios. */
+  skin: z.enum(['imessage', 'instagram']).optional(),
   contact: z.object({
     name: z.string().min(1).max(30),
     /** Single emoji shown instead of initials in the avatar, optional. */

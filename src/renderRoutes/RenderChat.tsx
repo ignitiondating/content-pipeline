@@ -17,12 +17,16 @@ export default function RenderChat() {
   if (error) return <div data-capture-page>error: {error}</div>
   if (!data) return <div data-capture-page />
 
-  if (params.get('full') !== null && data.format === 'clip') {
+  if ((params.get('full') !== null || params.get('zoom') !== null) && data.format === 'clip') {
     const spec = data.spec as ClipSpec
     const visible = Number(params.get('visible') ?? spec.chat.messages.length)
     return (
       <div data-capture-page>
-        <ChatScreen spec={spec.chat} mode="full" visibleCount={visible} />
+        <ChatScreen
+          spec={spec.chat}
+          mode={params.get('zoom') !== null ? 'zoom' : 'full'}
+          visibleCount={visible}
+        />
       </div>
     )
   }

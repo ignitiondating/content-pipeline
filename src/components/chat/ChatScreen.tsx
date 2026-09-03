@@ -1,4 +1,4 @@
-import { CHAT_CANVAS, CHAT_THEMES, TAPBACK_GLYPHS, type ChatMessage, type ChatSpec } from '@shared/formats/chat'
+import { CHAT_CANVAS, CHAT_SKINS, CHAT_THEMES, TAPBACK_GLYPHS, type ChatMessage, type ChatSpec } from '@shared/formats/chat'
 
 interface ChatScreenProps {
   spec: ChatSpec
@@ -6,9 +6,17 @@ interface ChatScreenProps {
   visibleCount?: number
   /** Show the incoming typing indicator (clip states). */
   showTyping?: boolean
-  /** 'full' = whole phone screen; 'card' = floating card for clip overlays. */
-  mode?: 'full' | 'card'
+  /**
+   * 'full' = whole phone screen; 'card' = floating card for clip overlays;
+   * 'zoom' = only the last two messages, huge, no app chrome — the
+   * zoomed-DM look reference clips use.
+   */
+  mode?: 'full' | 'card' | 'zoom'
 }
+
+/** Own-bubble background honoring the optional skin (iMessage vs Instagram). */
+const meBubbleBg = (spec: ChatSpec) =>
+  spec.skin === 'instagram' ? CHAT_SKINS.instagram.bubbleMe : CHAT_THEMES[spec.theme].bubbleMe
 
 const FONT_STACK = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif"
 
@@ -87,7 +95,7 @@ function Bubble({ spec, message, isLast }: { spec: ChatSpec; message: ChatMessag
         <div style={{ position: 'relative', maxWidth: '75%' }}>
           <div
             style={{
-              background: mine ? theme.bubbleMe : theme.bubbleThem,
+              background: mine ? meBubbleBg(spec) : theme.bubbleThem,
               color: mine ? theme.bubbleMeText : theme.bubbleThemText,
               borderRadius: 20,
               [mine ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 6,
@@ -233,6 +241,77 @@ export default function ChatScreen({ spec, visibleCount, showTyping = false, mod
   const theme = CHAT_THEMES[spec.theme]
   const shown = spec.messages.slice(0, visibleCount ?? spec.messages.length)
   const lastIndex = shown.length - 1
+
+  if (mode === 'zoom') {
+    // Previous message + the new one, huge, centered on a bare background.
+    const focus = shown.slice(-2)
+    return (
+      <div
+        style={{
+          width: CHAT_CANVAS.width,
+          height: CHAT_CANVAS.height,
+          background: theme.background,
+          fontFamily: FONT_STACK,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: 20,
+          padding: '0 28px',
+        }}
+      >
+        {focus.map((message, i) => {
+          const mine = message.from === 'me'
+          return (
+            <div key={i} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}>
+              <div style={{ position: 'relative', maxWidth: '92%' }}>
+                <div
+                  style={{
+                    background: mine ? meBubbleBg(spec) : theme.bubbleThem,
+                    color: mine ? theme.bubbleMeText : theme.bubbleThemText,
+                    borderRadius: 34,
+                    [mine ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 10,
+                    padding: '18px 26px',
+                    fontSize: 31,
+                    lineHeight: 1.24,
+                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {message.text}
+                </div>
+                {message.reactions?.map((reaction, r) => (
+                  <div
+                    key={r}
+                    style={{
+                      position: 'absolute',
+                      top: -24,
+                      [mine ? 'left' : 'right']: -14 - r * 40,
+                      background:
+                        reaction.from === 'me'
+                          ? meBubbleBg(spec)
+                          : spec.theme === 'dark'
+                            ? '#3A3A3E'
+                            : '#D6D6DA',
+                      borderRadius: '50%',
+                      width: 46,
+                      height: 46,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 22,
+                      border: `3px solid ${theme.background}`,
+                    }}
+                  >
+                    {TAPBACK_GLYPHS[reaction.kind]}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
   const thread = (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column' }}>

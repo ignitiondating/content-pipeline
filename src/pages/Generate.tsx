@@ -172,7 +172,7 @@ function CutsExample({
           {isIntro && <HookText hook={examples.hook} />}
         </div>
       ) : (
-        <ChatScreen spec={examples.clipChat} mode="full" visibleCount={segment.visibleCount} />
+        <ChatScreen spec={examples.clipChat} mode="zoom" visibleCount={segment.visibleCount} />
       )}
     </Scaled>
   )

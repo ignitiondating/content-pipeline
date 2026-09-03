@@ -32,6 +32,7 @@ export function buildClipPrompt(
 - hook: instruction framing, max ~50 chars: "Texting huzz *take notes*", "How to revive a dry convo *open your notebook*". This is THE retention device.
 - hookPersists: true for lesson-style overlay clips, false for cuts (the hook rides only the intro burst).
 - chat: ONE short exchange, 4-9 messages, sub-40s read time. The payoff message lands last.
+- chat.skin: "instagram" (purple DM bubbles) when the scenario reads as an IG story-reply or DM slide; "imessage" otherwise. Mix across variants.
 - brollTag: "basketball" for confident/outcome energy, "3d" for absurd/comedic energy.
 - withMusic: false by default (trending sound is added at post time).
 - meta.caption: outcome or question caption ("did I cook?", "date secured"). Include one outcome hashtag.`,

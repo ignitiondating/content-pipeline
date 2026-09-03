@@ -121,8 +121,9 @@ async function renderCuts(
   const chatSegments = timeline.segments.filter((s) => s.type === 'chat')
 
   setProgress(0.05, `capturing ${chatSegments.length} chat screens`)
+  // Zoomed-DM screens: only the previous message + the new one, huge.
   const captures: CaptureRequest[] = chatSegments.map((segment) => ({
-    route: `/render/chat?specId=${draft.id}&full=1&visible=${segment.visibleCount}`,
+    route: `/render/chat?specId=${draft.id}&zoom=1&visible=${segment.visibleCount}`,
     outPath: path.join(workdir, `chat_${String(segment.visibleCount).padStart(2, '0')}.png`),
   }))
   captures.push({
