@@ -33,11 +33,12 @@ export async function renderClip(
     const ordered = assetsInPathOrder('broll', spec.brollTag)
     if (ordered.length === 0) throw noBroll()
     const n = ordered.length
-    // Intro opens on the first-numbered file, the outro closes on the last;
-    // bursts in between cycle through the files before it, in order.
+    // Strictly consecutive through the numbered files (01, 02, 03, …); the
+    // outro is always the last file. A file only repeats when the clip has
+    // more bursts than the library has files.
     const brolls = Array.from({ length: burstCount }, (_, k) => {
       if (burstCount > 1 && k === burstCount - 1) return ordered[n - 1]
-      return ordered[k % Math.max(n - 1, 1)]
+      return ordered[k % n]
     })
     for (const id of new Set(brolls.map((b) => b.id))) markAssetUsed(id)
     await renderCuts(draft, spec, brolls, music, workdir, setProgress)

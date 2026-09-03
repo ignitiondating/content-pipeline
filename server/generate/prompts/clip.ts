@@ -34,7 +34,7 @@ export function buildClipPrompt(
 - structure "cuts": full-screen chat screenshots HARD-CUT with 2-3s b-roll hype bursts after every exchange — the payoff of each exchange earns the hype cut. Highlight-reel energy.
 - hook: instruction framing, max ~50 chars: "Texting huzz *take notes*", "How to revive a dry convo *open your notebook*". This is THE retention device.
 - hookPersists: true for lesson-style overlay clips, false for cuts (the hook rides only the intro burst).
-- chat: ONE short exchange, 4-9 messages, sub-40s read time. The payoff message lands last.
+- chat: ONE short exchange. For "overlay": 4-9 messages. For "cuts": 4-6 messages MAX (each message adds a b-roll beat and the library has ~6 clips — more messages force footage repeats). The payoff message lands last.
 - chat.skin: ${skin ? `use "${skin}" for EVERY variant.` : `DEFAULT to "instagram" (purple DM bubbles — the reference look); use "imessage" only when the brief explicitly reads as SMS/iMessage texting.`}
 - chat.storyReply: true when skin is "instagram" AND the first message is an opener replying to her story (then write message 1 as that reply, e.g. "is your dad a pirate?").
 - brollTag: "basketball" for confident/outcome energy, "3d" for absurd/comedic energy.
