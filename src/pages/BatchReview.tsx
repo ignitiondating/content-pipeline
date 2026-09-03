@@ -96,7 +96,9 @@ export default function BatchReview() {
                 {draft.format}
                 {draft.format === 'carousel' && ` · ${(draft.spec as CarouselSpec).style ?? 'screenshot'}`}
                 {draft.format === 'clip' &&
-                  ` · ${(draft.spec as ClipSpec).structure ?? 'overlay'} · ${(draft.spec as ClipSpec).brollTag}`}
+                  ` · ${(draft.spec as ClipSpec).structure ?? 'overlay'} · ${(draft.spec as ClipSpec).brollTag} · ${
+                    (draft.spec as ClipSpec).chat.skin ?? 'imessage'
+                  }`}
                 {draft.partRole && ` · part ${(draft.partIndex ?? 0) + 1} (${draft.partRole})`}
               </span>
               <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS_CHIP[draft.status] ?? STATUS_CHIP.draft}`}>

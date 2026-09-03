@@ -34,6 +34,7 @@ const GenerateBody = z.object({
   structure: z.enum(['overlay', 'cuts']).optional(),
   brollTag: z.enum(['basketball', '3d']).optional(),
   carouselStyle: z.enum(['screenshot', 'zoom']).optional(),
+  skin: z.enum(['imessage', 'instagram']).optional(),
   serial: z.boolean().default(false),
 })
 

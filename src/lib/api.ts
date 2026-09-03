@@ -64,6 +64,7 @@ export const api = {
     structure?: string
     brollTag?: string
     carouselStyle?: string
+    skin?: string
     serial: boolean
   }) =>
     request<{ drafts: Draft[] }>('/api/generate', { method: 'POST', body: JSON.stringify(body) }),

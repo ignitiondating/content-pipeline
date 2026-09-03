@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ClipSpecSchema } from '../../../shared/formats/clip'
+import { ChatSpecSchema } from '../../../shared/formats/chat'
 import { STYLE_GUIDE } from '../styleGuide'
 import { avoidBlock, briefBlock, variantsSchema } from './common'
 
@@ -9,10 +10,12 @@ export function buildClipPrompt(
   avoidHooks: string[],
   structure?: 'overlay' | 'cuts',
   brollTag?: 'basketball' | '3d',
+  skin?: 'imessage' | 'instagram',
 ) {
   const overrides: Record<string, z.ZodType> = {}
   if (structure) overrides.structure = z.literal(structure)
   if (brollTag) overrides.brollTag = z.literal(brollTag)
+  if (skin) overrides.chat = ChatSpecSchema.extend({ skin: z.literal(skin) })
   const spec: z.ZodType = Object.keys(overrides).length
     ? ClipSpecSchema.extend(overrides)
     : ClipSpecSchema
@@ -32,7 +35,7 @@ export function buildClipPrompt(
 - hook: instruction framing, max ~50 chars: "Texting huzz *take notes*", "How to revive a dry convo *open your notebook*". This is THE retention device.
 - hookPersists: true for lesson-style overlay clips, false for cuts (the hook rides only the intro burst).
 - chat: ONE short exchange, 4-9 messages, sub-40s read time. The payoff message lands last.
-- chat.skin: "instagram" (purple DM bubbles) when the scenario reads as an IG story-reply or DM slide; "imessage" otherwise. Mix across variants.
+- chat.skin: ${skin ? `use "${skin}" for EVERY variant.` : `DEFAULT to "instagram" (purple DM bubbles — the reference look); use "imessage" only when the brief explicitly reads as SMS/iMessage texting.`}
 - chat.storyReply: true when skin is "instagram" AND the first message is an opener replying to her story (then write message 1 as that reply, e.g. "is your dad a pirate?").
 - brollTag: "basketball" for confident/outcome energy, "3d" for absurd/comedic energy.
 - withMusic: false by default (trending sound is added at post time).

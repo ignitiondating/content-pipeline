@@ -24,6 +24,8 @@ export interface GenerateRequest {
   brollTag?: 'basketball' | '3d'
   /** Only for carousels; omitted = Claude mixes screenshot and zoom styles. */
   carouselStyle?: 'screenshot' | 'zoom'
+  /** Chat bubble skin for clips / zoom carousels; omitted = instagram-first default. */
+  skin?: 'imessage' | 'instagram'
   /** Comment-gated serial: generates 2-3 linked parts instead of variants. */
   serial?: boolean
 }
@@ -69,6 +71,7 @@ function promptFor(request: GenerateRequest, avoid: string[]): VariantPrompt {
       request.count,
       avoid,
       request.carouselStyle,
+      request.skin,
     ) as unknown as VariantPrompt
   if (request.format === 'clip')
     return buildClipPrompt(
@@ -77,6 +80,7 @@ function promptFor(request: GenerateRequest, avoid: string[]): VariantPrompt {
       avoid,
       request.structure,
       request.brollTag,
+      request.skin,
     ) as unknown as VariantPrompt
   return buildSlideshowPrompt(
     request.style ?? 'shoot_your_shot',
@@ -130,6 +134,12 @@ export async function regenerateDraft(draftId: string): Promise<Draft> {
   const brollTag = draft.format === 'clip' ? (draft.spec as ClipSpec).brollTag : undefined
   const carouselStyle =
     draft.format === 'carousel' ? ((draft.spec as CarouselSpec).style ?? 'screenshot') : undefined
+  const skin =
+    draft.format === 'clip'
+      ? (draft.spec as ClipSpec).chat.skin
+      : draft.format === 'carousel'
+        ? (draft.spec as CarouselSpec).chat?.skin
+        : undefined
   const prompt = promptFor(
     {
       format: draft.format,
@@ -139,6 +149,7 @@ export async function regenerateDraft(draftId: string): Promise<Draft> {
       structure,
       brollTag,
       carouselStyle,
+      skin,
     },
     avoid,
   )

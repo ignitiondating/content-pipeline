@@ -33,6 +33,12 @@ const CAROUSEL_STYLES = [
   { key: 'zoom', label: 'Zoom DM', hint: 'one huge message per slide' },
 ] as const
 
+const SKIN_OPTIONS = [
+  { key: 'auto', label: 'Auto', hint: 'Instagram-first, Claude decides' },
+  { key: 'instagram', label: 'Instagram', hint: 'purple DM bubbles' },
+  { key: 'imessage', label: 'iMessage', hint: 'blue bubbles' },
+] as const
+
 const BROLL_OPTIONS = [
   { key: 'auto', label: 'Auto', hint: 'Claude picks per variant' },
   { key: 'basketball', label: 'Basketball', hint: 'library/broll/basketball' },
@@ -44,6 +50,7 @@ type StyleKey = (typeof STYLES)[number]['key']
 type StructureKey = (typeof STRUCTURES)[number]['key']
 type BrollKey = (typeof BROLL_OPTIONS)[number]['key']
 type CarouselStyleKey = (typeof CAROUSEL_STYLES)[number]['key']
+type SkinKey = (typeof SKIN_OPTIONS)[number]['key']
 
 const PREVIEW_H = 560
 
@@ -322,6 +329,7 @@ export default function Generate() {
   const [structure, setStructure] = useState<StructureKey>('mix')
   const [brollTag, setBrollTag] = useState<BrollKey>('auto')
   const [carouselStyle, setCarouselStyle] = useState<CarouselStyleKey>('auto')
+  const [skin, setSkin] = useState<SkinKey>('auto')
   const [brief, setBrief] = useState('')
   const [count, setCount] = useState(5)
   const [serial, setSerial] = useState(false)
@@ -356,6 +364,9 @@ export default function Generate() {
         ...(format === 'clip' && structure !== 'mix' ? { structure } : {}),
         ...(format === 'clip' && brollTag !== 'auto' ? { brollTag } : {}),
         ...(format === 'carousel' && carouselStyle !== 'auto' ? { carouselStyle } : {}),
+        ...((format === 'clip' || (format === 'carousel' && carouselStyle === 'zoom')) && skin !== 'auto'
+          ? { skin }
+          : {}),
       })
       const batchId = drafts[0]?.batchId
       navigate(batchId ? `/batches/${batchId}` : '/drafts')
@@ -449,6 +460,23 @@ export default function Generate() {
               ))}
             </div>
           </>
+        )}
+
+        {(format === 'clip' || (format === 'carousel' && carouselStyle === 'zoom')) && (
+          <div className="mb-4 grid grid-cols-3 gap-3">
+            {SKIN_OPTIONS.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setSkin(s.key)}
+                className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                  skin === s.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
+                }`}
+              >
+                <span className="block font-medium">Skin: {s.label}</span>
+                <span className="mt-0.5 block text-xs text-neutral-500">{s.hint}</span>
+              </button>
+            ))}
+          </div>
         )}
 
         <label className="mb-4 flex items-center gap-2 text-sm">
