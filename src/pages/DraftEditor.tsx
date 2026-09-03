@@ -4,6 +4,7 @@ import type { Draft } from '@shared/formats/draft'
 import { SPEC_SCHEMAS, type Format } from '@shared/formats/draft'
 import { buildClipTimeline, buildCutsTimeline } from '@shared/timeline'
 import type { ClipSpec } from '@shared/formats/clip'
+import { carouselSlideCount, type CarouselSpec } from '@shared/formats/carousel'
 import DraftPreview from '../components/studio/DraftPreview'
 import { api } from '../lib/api'
 
@@ -67,8 +68,13 @@ export default function DraftEditor() {
 
   if (!draft) return <p className="text-neutral-500">Loading…</p>
 
+  const effectiveSpec = parsed.spec ?? draft.spec
   const slideCount =
-    draft.format === 'clip' ? 0 : ((parsed.spec ?? draft.spec) as { slides: unknown[] }).slides.length
+    draft.format === 'clip'
+      ? 0
+      : draft.format === 'carousel'
+        ? carouselSlideCount(effectiveSpec as CarouselSpec)
+        : ((effectiveSpec as { slides: unknown[] }).slides?.length ?? 0)
 
   const save = async () => {
     setStatus('saving')

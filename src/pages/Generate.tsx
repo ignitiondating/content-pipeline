@@ -27,6 +27,12 @@ const STRUCTURES = [
   { key: 'cuts', label: 'Cuts', hint: 'full chat screens + hard-cut b-roll bursts' },
 ] as const
 
+const CAROUSEL_STYLES = [
+  { key: 'auto', label: 'Auto', hint: 'Claude mixes both styles' },
+  { key: 'screenshot', label: 'Screenshot', hint: 'full-app iMessage screens' },
+  { key: 'zoom', label: 'Zoom DM', hint: 'one huge message per slide' },
+] as const
+
 const BROLL_OPTIONS = [
   { key: 'auto', label: 'Auto', hint: 'Claude picks per variant' },
   { key: 'basketball', label: 'Basketball', hint: 'library/broll/basketball' },
@@ -37,6 +43,7 @@ type FormatKey = (typeof FORMAT_CARDS)[number]['key']
 type StyleKey = (typeof STYLES)[number]['key']
 type StructureKey = (typeof STRUCTURES)[number]['key']
 type BrollKey = (typeof BROLL_OPTIONS)[number]['key']
+type CarouselStyleKey = (typeof CAROUSEL_STYLES)[number]['key']
 
 const PREVIEW_H = 560
 
@@ -216,6 +223,7 @@ function ExamplePanel({
   format,
   style,
   structure,
+  carouselStyle,
   serial,
 }: {
   examples: Examples
@@ -223,21 +231,35 @@ function ExamplePanel({
   format: FormatKey
   style: StyleKey
   structure: StructureKey
+  carouselStyle: CarouselStyleKey
   serial: boolean
 }) {
   let preview: ReactNode
   let caption: string
   if (format === 'carousel') {
-    preview = (
-      <Pager
-        slides={examples.carousel.map((chat, i) => (
-          <Scaled key={i} height={PREVIEW_H}>
-            <ChatScreen spec={chat} mode="full" />
-          </Scaled>
-        ))}
-      />
-    )
-    caption = 'Fake iMessage screenshots, 1080×1920 PNGs. Posted as a TikTok photo carousel with a question caption.'
+    if (carouselStyle === 'zoom') {
+      preview = (
+        <Pager
+          slides={examples.clipChat.messages.map((_, i) => (
+            <Scaled key={i} height={PREVIEW_H}>
+              <ChatScreen spec={examples.clipChat} mode="zoom" visibleCount={i + 1} />
+            </Scaled>
+          ))}
+        />
+      )
+      caption = 'One huge message per slide in the zoomed-DM look; the viewer swipes through the conversation.'
+    } else {
+      preview = (
+        <Pager
+          slides={examples.carousel.map((chat, i) => (
+            <Scaled key={i} height={PREVIEW_H}>
+              <ChatScreen spec={chat} mode="full" />
+            </Scaled>
+          ))}
+        />
+      )
+      caption = 'Fake iMessage screenshots, 1080×1920 PNGs. Posted as a TikTok photo carousel with a question caption.'
+    }
   } else if (format === 'slideshow') {
     preview = (
       <Pager
@@ -299,6 +321,7 @@ export default function Generate() {
   const [style, setStyle] = useState<StyleKey>('shoot_your_shot')
   const [structure, setStructure] = useState<StructureKey>('mix')
   const [brollTag, setBrollTag] = useState<BrollKey>('auto')
+  const [carouselStyle, setCarouselStyle] = useState<CarouselStyleKey>('auto')
   const [brief, setBrief] = useState('')
   const [count, setCount] = useState(5)
   const [serial, setSerial] = useState(false)
@@ -332,6 +355,7 @@ export default function Generate() {
         serial,
         ...(format === 'clip' && structure !== 'mix' ? { structure } : {}),
         ...(format === 'clip' && brollTag !== 'auto' ? { brollTag } : {}),
+        ...(format === 'carousel' && carouselStyle !== 'auto' ? { carouselStyle } : {}),
       })
       const batchId = drafts[0]?.batchId
       navigate(batchId ? `/batches/${batchId}` : '/drafts')
@@ -360,6 +384,23 @@ export default function Generate() {
             </button>
           ))}
         </div>
+
+        {format === 'carousel' && (
+          <div className="mb-4 grid grid-cols-3 gap-3">
+            {CAROUSEL_STYLES.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setCarouselStyle(s.key)}
+                className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                  carouselStyle === s.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
+                }`}
+              >
+                <span className="block font-medium">{s.label}</span>
+                <span className="mt-0.5 block text-xs text-neutral-500">{s.hint}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {format === 'slideshow' && (
           <div className="mb-4 grid grid-cols-3 gap-3">
@@ -448,12 +489,13 @@ export default function Generate() {
 
       <div className="hidden lg:block">
         <ExamplePanel
-          key={`${format}-${style}-${structure}-${brollTag}`}
+          key={`${format}-${style}-${structure}-${brollTag}-${carouselStyle}`}
           examples={examples}
           videos={exampleVideos}
           format={format}
           style={style}
           structure={structure}
+          carouselStyle={carouselStyle}
           serial={serial}
         />
       </div>

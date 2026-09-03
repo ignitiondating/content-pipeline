@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { Draft } from '@shared/formats/draft'
 import type { ClipSpec } from '@shared/formats/clip'
+import type { CarouselSpec } from '@shared/formats/carousel'
 import DraftPreview from '../components/studio/DraftPreview'
 import { api } from '../lib/api'
 
@@ -93,6 +94,7 @@ export default function BatchReview() {
             <div className="mb-3 flex items-center justify-between text-xs text-neutral-400">
               <span>
                 {draft.format}
+                {draft.format === 'carousel' && ` · ${(draft.spec as CarouselSpec).style ?? 'screenshot'}`}
                 {draft.format === 'clip' &&
                   ` · ${(draft.spec as ClipSpec).structure ?? 'overlay'} · ${(draft.spec as ClipSpec).brollTag}`}
                 {draft.partRole && ` · part ${(draft.partIndex ?? 0) + 1} (${draft.partRole})`}

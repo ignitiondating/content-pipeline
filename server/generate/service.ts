@@ -3,6 +3,7 @@ import { DraftMetaSchema, SPEC_SCHEMAS, type AnySpec, type Draft, type DraftMeta
 import { zodIssues } from '../../shared/validate'
 import type { SlideshowSpec } from '../../shared/formats/slideshow'
 import type { ClipSpec } from '../../shared/formats/clip'
+import type { CarouselSpec } from '../../shared/formats/carousel'
 import { SLIDESHOW_STYLES } from '../../shared/formats/slideshow'
 import { createBatch, createDraft, createSeries, getDraft, recentHooks, updateDraft } from '../db/repo'
 import { currentModel, generateStructured, StructuredOutputError } from './client'
@@ -21,6 +22,8 @@ export interface GenerateRequest {
   structure?: 'overlay' | 'cuts'
   /** Only for clips; omitted = Claude picks the b-roll tag per variant. */
   brollTag?: 'basketball' | '3d'
+  /** Only for carousels; omitted = Claude mixes screenshot and zoom styles. */
+  carouselStyle?: 'screenshot' | 'zoom'
   /** Comment-gated serial: generates 2-3 linked parts instead of variants. */
   serial?: boolean
 }
@@ -61,7 +64,12 @@ function promptFor(request: GenerateRequest, avoid: string[]): VariantPrompt {
   // Each builder's schema narrows spec to its own format; erased to AnySpec
   // here so one code path can create drafts for all three.
   if (request.format === 'carousel')
-    return buildCarouselPrompt(request.brief, request.count, avoid) as unknown as VariantPrompt
+    return buildCarouselPrompt(
+      request.brief,
+      request.count,
+      avoid,
+      request.carouselStyle,
+    ) as unknown as VariantPrompt
   if (request.format === 'clip')
     return buildClipPrompt(
       request.brief,
@@ -120,8 +128,18 @@ export async function regenerateDraft(draftId: string): Promise<Draft> {
   const style = draft.format === 'slideshow' ? (draft.spec as SlideshowSpec).style : undefined
   const structure = draft.format === 'clip' ? (draft.spec as ClipSpec).structure : undefined
   const brollTag = draft.format === 'clip' ? (draft.spec as ClipSpec).brollTag : undefined
+  const carouselStyle =
+    draft.format === 'carousel' ? ((draft.spec as CarouselSpec).style ?? 'screenshot') : undefined
   const prompt = promptFor(
-    { format: draft.format, brief: 'Fresh take, same general vibe as before.', count: 1, style, structure, brollTag },
+    {
+      format: draft.format,
+      brief: 'Fresh take, same general vibe as before.',
+      count: 1,
+      style,
+      structure,
+      brollTag,
+      carouselStyle,
+    },
     avoid,
   )
   const [variant] = await generateVariants(prompt, draft.format)

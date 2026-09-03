@@ -33,6 +33,7 @@ const GenerateBody = z.object({
   style: z.enum(SLIDESHOW_STYLES).optional(),
   structure: z.enum(['overlay', 'cuts']).optional(),
   brollTag: z.enum(['basketball', '3d']).optional(),
+  carouselStyle: z.enum(['screenshot', 'zoom']).optional(),
   serial: z.boolean().default(false),
 })
 

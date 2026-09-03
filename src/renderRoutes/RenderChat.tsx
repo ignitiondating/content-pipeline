@@ -17,13 +17,16 @@ export default function RenderChat() {
   if (error) return <div data-capture-page>error: {error}</div>
   if (!data) return <div data-capture-page />
 
-  if ((params.get('full') !== null || params.get('zoom') !== null) && data.format === 'clip') {
-    const spec = data.spec as ClipSpec
-    const visible = Number(params.get('visible') ?? spec.chat.messages.length)
+  if (params.get('full') !== null || params.get('zoom') !== null) {
+    // Zoom/full single-conversation captures: clips and zoom carousels.
+    const zoomChat: ChatSpec | undefined =
+      data.format === 'clip' ? (data.spec as ClipSpec).chat : (data.spec as CarouselSpec).chat
+    if (!zoomChat) return <div data-capture-page>error: spec has no chat</div>
+    const visible = Number(params.get('visible') ?? zoomChat.messages.length)
     return (
       <div data-capture-page>
         <ChatScreen
-          spec={spec.chat}
+          spec={zoomChat}
           mode={params.get('zoom') !== null ? 'zoom' : 'full'}
           visibleCount={visible}
           storyImageUrl={params.get('story') ?? undefined}
@@ -51,7 +54,7 @@ export default function RenderChat() {
 
   const slideIndex = Number(params.get('slide') ?? '0')
   const chat: ChatSpec | undefined =
-    data.format === 'carousel' ? (data.spec as CarouselSpec).slides[slideIndex] : undefined
+    data.format === 'carousel' ? (data.spec as CarouselSpec).slides?.[slideIndex] : undefined
   if (!chat) return <div data-capture-page>error: bad slide index</div>
   return (
     <div data-capture-page>

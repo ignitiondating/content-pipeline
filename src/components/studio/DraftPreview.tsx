@@ -29,7 +29,16 @@ export default function DraftPreview({
 }: DraftPreviewProps) {
   if (draft.format === 'carousel') {
     const spec = draft.spec as CarouselSpec
-    const chat = spec.slides[Math.min(slideIndex, spec.slides.length - 1)]
+    if (spec.style === 'zoom' && spec.chat) {
+      const visible = Math.min(slideIndex + 1, spec.chat.messages.length)
+      return (
+        <Scaled height={height}>
+          <ChatScreen spec={spec.chat} mode="zoom" visibleCount={visible} />
+        </Scaled>
+      )
+    }
+    const slides = spec.slides ?? []
+    const chat = slides[Math.min(slideIndex, slides.length - 1)]
     return <Scaled height={height}>{chat && <ChatScreen spec={chat} mode="full" />}</Scaled>
   }
   if (draft.format === 'slideshow') {
