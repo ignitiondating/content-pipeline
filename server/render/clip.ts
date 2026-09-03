@@ -32,7 +32,13 @@ export async function renderClip(
     const burstCount = buildCutsTimeline(spec.chat).segments.filter((s) => s.type === 'broll').length
     const ordered = assetsInPathOrder('broll', spec.brollTag)
     if (ordered.length === 0) throw noBroll()
-    const brolls = Array.from({ length: burstCount }, (_, k) => ordered[k % ordered.length])
+    const n = ordered.length
+    // Intro opens on the first-numbered file, the outro closes on the last;
+    // bursts in between cycle through the files before it, in order.
+    const brolls = Array.from({ length: burstCount }, (_, k) => {
+      if (burstCount > 1 && k === burstCount - 1) return ordered[n - 1]
+      return ordered[k % Math.max(n - 1, 1)]
+    })
     for (const id of new Set(brolls.map((b) => b.id))) markAssetUsed(id)
     await renderCuts(draft, spec, brolls, music, workdir, setProgress)
   } else {
@@ -127,11 +133,13 @@ async function renderCuts(
   const story = storyAsset ? `&story=${encodeURIComponent(`/files/${storyAsset.path}`)}` : ''
   const captures: CaptureRequest[] = chatSegments.map((segment) => ({
     route: `/render/chat?specId=${draft.id}&zoom=1&visible=${segment.visibleCount}${
-      segment.visibleCount <= 2 ? story : ''
+      segment.visibleCount === 1 ? story : ''
     }`,
     outPath: path.join(workdir, `chat_${String(segment.visibleCount).padStart(2, '0')}.png`),
   }))
-  if (hasPromo) {
+  // A real WingAI screenshot from library/promo beats the rendered card.
+  const promoAsset = hasPromo ? pickAsset('promo') : null
+  if (hasPromo && !promoAsset) {
     captures.push({
       route: `/render/promo?specId=${draft.id}`,
       outPath: path.join(workdir, 'promo.png'),
@@ -169,7 +177,10 @@ async function renderCuts(
   if (hasPromo) {
     const promoDurS = timeline.segments.find((s) => s.type === 'promo')!.durS
     promoInput = stillBase + stillInputs.size
-    args.push('-loop', '1', '-t', promoDurS.toFixed(3), '-i', path.join(workdir, 'promo.png'))
+    const promoFile = promoAsset
+      ? path.join(PROJECT_ROOT, promoAsset.path)
+      : path.join(workdir, 'promo.png')
+    args.push('-loop', '1', '-t', promoDurS.toFixed(3), '-i', promoFile)
   }
   const hookInput = stillBase + stillInputs.size + (hasPromo ? 1 : 0)
   args.push('-i', path.join(workdir, 'hook.png'))
@@ -194,7 +205,16 @@ async function renderCuts(
       filters.push(`[${promoInput}:v]${NORM},trim=duration=${segment.durS.toFixed(3)}[s${i}]`)
     } else {
       const input = stillInputs.get(segment.visibleCount)!
-      filters.push(`[${input}:v]${NORM},trim=duration=${segment.durS.toFixed(3)}[s${i}]`)
+      // Reference transition: the story screen fades to black and her reply
+      // fades in — the one soft cut in an otherwise hard-cut edit.
+      const storyFade = Boolean(spec.chat.storyReply) && spec.chat.messages.length > 1
+      const fade =
+        storyFade && segment.visibleCount === 1
+          ? `,fade=t=out:st=${(segment.durS - 0.5).toFixed(3)}:d=0.5`
+          : storyFade && segment.visibleCount === 2
+            ? ',fade=t=in:st=0:d=0.4'
+            : ''
+      filters.push(`[${input}:v]${NORM},trim=duration=${segment.durS.toFixed(3)}${fade}[s${i}]`)
     }
     labels.push(`[s${i}]`)
   })

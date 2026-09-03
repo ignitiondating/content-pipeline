@@ -23,7 +23,7 @@ export async function renderCarousel(
       spec.chat?.skin === 'instagram' && spec.chat.storyReply ? pickAsset('background') : null
     const story = storyAsset ? `&story=${encodeURIComponent(`/files/${storyAsset.path}`)}` : ''
     captures = Array.from({ length: count }, (_, i) => ({
-      route: `/render/chat?specId=${draft.id}&zoom=1&visible=${i + 1}${i < 2 ? story : ''}`,
+      route: `/render/chat?specId=${draft.id}&zoom=1&visible=${i + 1}${i === 0 ? story : ''}`,
       outPath: path.join(workdir, `slide_${String(i + 1).padStart(2, '0')}.png`),
     }))
   } else {

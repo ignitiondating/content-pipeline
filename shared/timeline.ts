@@ -62,8 +62,8 @@ const CUTS = {
   chatPerCharS: 0.05,
   chatMinS: 2.0,
   chatMaxS: 5.0,
-  /** A b-roll hype burst is cut in after every this many messages. */
-  messagesPerBurst: 2,
+  /** Scaling can compress chat holds down to this floor when bursts eat the budget. */
+  chatFloorS: 1.5,
 } as const
 
 /**
@@ -72,12 +72,21 @@ const CUTS = {
  * with b-roll bursts, closing on an outro montage. Chat holds scale to keep
  * the total inside CLIP_LIMITS; b-roll beats stay fixed so the rhythm holds.
  */
+/**
+ * Reference sequence: intro b-roll with the hook → story-reply screen →
+ * (black fade, no burst) her reply → then b-roll and chat alternating one
+ * and one, with the WingAI promo right before the payoff message, closing
+ * on the outro burst (the operator's last-numbered file).
+ */
 export function buildCutsTimeline(chat: ChatSpec): CutsTimeline {
   const holds = chat.messages.map((m) =>
     Math.min(CUTS.chatMaxS, Math.max(CUTS.chatMinS, CUTS.chatBaseS + m.text.length * CUTS.chatPerCharS)),
   )
   const promoAt = promoTargetIndex(chat)
-  const burstCount = Math.floor((chat.messages.length - 1) / CUTS.messagesPerBurst)
+  const storyFade = Boolean(chat.storyReply) && chat.messages.length > 1
+  // A burst follows every message except the last (the outro covers it) and
+  // except after the story screen, which fades to the reply instead.
+  const burstCount = Math.max(0, chat.messages.length - 1 - (storyFade ? 1 : 0))
   const fixedS =
     CUTS.introS + burstCount * CUTS.burstS + (promoAt >= 0 ? CUTS.promoS : 0) + CUTS.outroS
   const holdTotalS = holds.reduce((a, b) => a + b, 0)
@@ -93,9 +102,14 @@ export function buildCutsTimeline(chat: ChatSpec): CutsTimeline {
     // The product moment: WingAI suggests the payoff line, then the chat
     // screen reveals it sent — the reference's app-promo beat.
     if (i === promoAt) segments.push({ type: 'promo', visibleCount: i, durS: CUTS.promoS })
-    segments.push({ type: 'chat', visibleCount: i + 1, durS: round(holds[i] * scale) })
+    segments.push({
+      type: 'chat',
+      visibleCount: i + 1,
+      durS: round(Math.max(CUTS.chatFloorS, holds[i] * scale)),
+    })
     const isLast = i === chat.messages.length - 1
-    if (!isLast && (i + 1) % CUTS.messagesPerBurst === 0) {
+    const fadeInstead = i === 0 && storyFade
+    if (!isLast && !fadeInstead) {
       segments.push({ type: 'broll', visibleCount: i + 1, durS: CUTS.burstS })
     }
   })

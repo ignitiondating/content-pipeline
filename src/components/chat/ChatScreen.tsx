@@ -256,8 +256,9 @@ export default function ChatScreen({
   if (mode === 'zoom') {
     // Previous message + the new one, huge, centered on a bare background.
     const focus = shown.slice(-2)
-    // The story-reply opener stays on screen while message 1 is in frame.
-    const showStory = instagram && spec.storyReply && shown.length <= 2
+    // The story-reply opener only exists on the first screen; the next one
+    // is already the pure zoomed exchange (the reference fades to it).
+    const showStory = instagram && spec.storyReply && shown.length === 1
     return (
       <div
         style={{

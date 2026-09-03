@@ -84,19 +84,25 @@ describe('buildCutsTimeline', () => {
     expect(chats.map((s) => s.visibleCount)).toEqual([1, 2, 3, 4, 5])
   })
 
-  it('inserts hype bursts between exchanges and the promo before the payoff message', () => {
+  it('alternates b-roll and chat one-and-one with the promo before the payoff', () => {
     const { segments } = buildCutsTimeline(spec)
     const types = segments.map((s) => s.type).join(',')
     // Last own message is index 3 ("come over and find out") — the promo
     // presents it as WingAI's suggestion right before it lands.
-    expect(types).toBe('broll,chat,chat,broll,chat,promo,chat,broll,chat,broll')
+    expect(types).toBe('broll,chat,broll,chat,broll,chat,broll,promo,chat,broll,chat,broll')
     const promo = segments.find((s) => s.type === 'promo')!
     expect(promo.visibleCount).toBe(3)
   })
 
+  it('story-reply chats skip the burst after the story screen (fade instead)', () => {
+    const story = { ...spec, skin: 'instagram' as const, storyReply: true }
+    const types = buildCutsTimeline(story).segments.map((s) => s.type).join(',')
+    expect(types).toBe('broll,chat,chat,broll,chat,broll,promo,chat,broll,chat,broll')
+  })
+
   it('keeps the total inside the clip limits', () => {
     const long = chat(
-      Array.from({ length: 18 }, (_, i) => [i % 2 ? 'me' : 'them', 'a fairly long message to inflate the timing here']),
+      Array.from({ length: 7 }, (_, i) => [i % 2 ? 'me' : 'them', 'a fairly long message to inflate the timing here']),
     )
     expect(buildCutsTimeline(long).durationS).toBeLessThanOrEqual(CLIP_LIMITS.maxDurationS + 0.15)
     expect(buildCutsTimeline(spec).durationS).toBeGreaterThanOrEqual(CLIP_LIMITS.minDurationS - 0.15)

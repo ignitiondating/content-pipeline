@@ -29,8 +29,9 @@ export default function Assets() {
       <h1 className="mb-2 text-2xl font-bold">Assets</h1>
       <p className="mb-4 text-sm text-neutral-400">
         Drop files into <code>library/broll/basketball/</code>, <code>library/broll/3d/</code>,{' '}
-        <code>library/backgrounds/</code> and <code>library/music/</code>, then rescan. Rotation
-        picks the least-recently-used asset per render.
+        <code>library/backgrounds/</code>, <code>library/music/</code> and{' '}
+        <code>library/promo/</code> (WingAI app screenshots for the clip promo beat), then rescan.
+        Clip bursts follow filename order; other kinds rotate least-recently-used.
       </p>
       <button
         onClick={rescan}
