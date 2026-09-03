@@ -126,6 +126,24 @@ export function listAssets(): Asset[] {
 }
 
 /**
+ * All live assets of a kind (+ optional tag) in filename order — for formats
+ * where the operator numbers the files to control the sequence (nba-01…).
+ */
+export function assetsInPathOrder(kind: AssetKind, tag?: string): Asset[] {
+  const db = getDb()
+  const rows = (
+    tag
+      ? db.prepare('SELECT * FROM assets WHERE kind = ? AND tag = ? AND missing = 0 ORDER BY path').all(kind, tag)
+      : db.prepare('SELECT * FROM assets WHERE kind = ? AND missing = 0 ORDER BY path').all(kind)
+  ) as AssetRow[]
+  return rows.map(toAsset)
+}
+
+export function markAssetUsed(id: string): void {
+  getDb().prepare('UPDATE assets SET use_count = use_count + 1, last_used_at = ? WHERE id = ?').run(now(), id)
+}
+
+/**
  * Least-recently-used rotation within a kind (+ optional tag) so consecutive
  * renders don't reuse the same b-roll/background/music.
  */

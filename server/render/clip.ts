@@ -4,7 +4,7 @@ import path from 'node:path'
 import type { Draft } from '../../shared/formats/draft'
 import { CLIP_LIMITS, type ClipSpec } from '../../shared/formats/clip'
 import { buildClipTimeline, buildCutsTimeline } from '../../shared/timeline'
-import { pickAsset, type Asset } from '../assets/catalog'
+import { assetsInPathOrder, markAssetUsed, pickAsset, type Asset } from '../assets/catalog'
 import { captureSequence, type CaptureRequest } from '../capture/screenshot'
 import { PROJECT_ROOT } from '../paths'
 import { probeFfmpeg, probeMedia, type FfmpegCapabilities } from './ffmpeg'
@@ -26,16 +26,14 @@ export async function renderClip(
     )
 
   if ((spec.structure ?? 'overlay') === 'cuts') {
-    // The reference format alternates DIFFERENT highlights per hype burst,
-    // so cuts draws one rotated asset per burst (repeating only when the
-    // library has fewer files than bursts).
+    // The reference format alternates DIFFERENT highlights per hype burst.
+    // Bursts follow the operator's filename numbering (nba-01, nba-02, …),
+    // wrapping around when the clip has more bursts than files.
     const burstCount = buildCutsTimeline(spec.chat).segments.filter((s) => s.type === 'broll').length
-    const brolls: Asset[] = []
-    for (let i = 0; i < burstCount; i++) {
-      const asset = pickAsset('broll', spec.brollTag)
-      if (!asset) throw noBroll()
-      brolls.push(asset)
-    }
+    const ordered = assetsInPathOrder('broll', spec.brollTag)
+    if (ordered.length === 0) throw noBroll()
+    const brolls = Array.from({ length: burstCount }, (_, k) => ordered[k % ordered.length])
+    for (const id of new Set(brolls.map((b) => b.id))) markAssetUsed(id)
     await renderCuts(draft, spec, brolls, music, workdir, setProgress)
   } else {
     const broll = pickAsset('broll', spec.brollTag)
