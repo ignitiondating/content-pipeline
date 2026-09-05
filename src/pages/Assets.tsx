@@ -44,6 +44,7 @@ export default function Assets() {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-neutral-800 text-left text-neutral-500">
+            <th className="py-2"></th>
             <th className="py-2">Path</th>
             <th>Kind</th>
             <th>Tag</th>
@@ -54,6 +55,11 @@ export default function Assets() {
         <tbody>
           {assets.map((asset) => (
             <tr key={asset.id} className={`border-b border-neutral-900 ${asset.missing ? 'opacity-40' : ''}`}>
+              <td className="py-1 pr-2">
+                {(asset.kind === 'background' || asset.kind === 'promo') && !asset.missing && (
+                  <img src={`/files/${asset.path}`} alt="" className="h-16 w-10 rounded object-cover" />
+                )}
+              </td>
               <td className="py-2">{asset.path}{asset.missing && ' (missing)'}</td>
               <td>{asset.kind}</td>
               <td>{asset.tag ?? '—'}</td>

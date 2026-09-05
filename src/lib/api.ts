@@ -4,7 +4,8 @@ import type { Examples } from '@shared/examples'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
-    headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
+    // FormData bodies must set their own multipart boundary.
+    headers: typeof init?.body === 'string' ? { 'Content-Type': 'application/json' } : undefined,
     ...init,
   })
   const data = (await response.json()) as T & { error?: string }
@@ -86,6 +87,18 @@ export const api = {
   markPosted: (draftId: string) =>
     request<{ draft: Draft }>(`/api/exports/${draftId}/posted`, { method: 'POST' }),
   assets: () => request<{ assets: AssetItem[] }>('/api/assets'),
+  uploadAsset: (file: File, kind: 'background') => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('kind', kind)
+    return request<{ asset: AssetItem }>('/api/assets/upload', { method: 'POST', body: form })
+  },
+  createPromoShot: (body: { imagePath?: string; bubbleMe: string; bubbleThem: string; suggestion: string }) =>
+    request<{ asset: AssetItem }>('/api/promo-shots', { method: 'POST', body: JSON.stringify(body) }),
+  promoShot: (id: string) =>
+    request<{ spec: { imagePath?: string; bubbleMe: string; bubbleThem: string; suggestion: string } }>(
+      `/api/promo-shots/${id}`,
+    ),
   rescanAssets: () =>
     request<{ added: number; missing: number; total: number }>('/api/assets/rescan', { method: 'POST' }),
   counts: () => request<{ drafts: Record<string, number>; activeJobs: number }>('/api/counts'),

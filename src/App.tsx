@@ -12,6 +12,8 @@ import RenderChat from './renderRoutes/RenderChat'
 import RenderSlide from './renderRoutes/RenderSlide'
 import RenderOverlay from './renderRoutes/RenderOverlay'
 import RenderPromo from './renderRoutes/RenderPromo'
+import RenderPromoShot from './renderRoutes/RenderPromoShot'
+import PromoShots from './pages/PromoShots'
 
 const NAV = [
   { to: '/', label: 'Dashboard' },
@@ -20,6 +22,7 @@ const NAV = [
   { to: '/queue', label: 'Render queue' },
   { to: '/library', label: 'Library' },
   { to: '/assets', label: 'Assets' },
+  { to: '/promo-shots', label: 'Promo shots' },
   { to: '/settings', label: 'Settings' },
 ]
 
@@ -33,6 +36,7 @@ export default function App() {
         <Route path="/render/slide" element={<RenderSlide />} />
         <Route path="/render/overlay" element={<RenderOverlay />} />
         <Route path="/render/promo" element={<RenderPromo />} />
+        <Route path="/render/promoshot" element={<RenderPromoShot />} />
       </Routes>
     )
   }
@@ -71,6 +75,7 @@ export default function App() {
           <Route path="/queue" element={<RenderQueue />} />
           <Route path="/library" element={<Library />} />
           <Route path="/assets" element={<Assets />} />
+          <Route path="/promo-shots" element={<PromoShots />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>

@@ -1,6 +1,10 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
 import { getDb } from '../db/index'
+import { BACKGROUNDS_DIR, PROJECT_ROOT } from '../paths'
+import { createPromoShot, getPromoShotSpec, PromoShotSpecSchema } from '../render/promoShot'
 import { FORMATS, DRAFT_STATUSES } from '../../shared/formats/draft'
 import { SLIDESHOW_STYLES } from '../../shared/formats/slideshow'
 import { buildClipTimeline } from '../../shared/timeline'
@@ -151,6 +155,45 @@ api.post('/exports/:draftId/posted', (c) => {
 // ---- assets --------------------------------------------------------------
 
 api.get('/assets', (c) => c.json({ assets: listAssets() }))
+
+api.post('/assets/upload', async (c) => {
+  try {
+    const body = await c.req.parseBody()
+    const file = body.file
+    if (!(file instanceof File)) return c.json({ error: 'multipart field "file" is required' }, 400)
+    if (body.kind !== 'background') return c.json({ error: 'kind must be "background"' }, 400)
+    if (!/\.(png|jpe?g|webp)$/i.test(file.name)) {
+      return c.json({ error: 'only png/jpg/webp images are accepted' }, 400)
+    }
+    const safe = file.name.replace(/[^\w.-]+/g, '-')
+    let target = path.join(BACKGROUNDS_DIR, safe)
+    if (existsSync(target)) target = path.join(BACKGROUNDS_DIR, `${Date.now()}-${safe}`)
+    mkdirSync(BACKGROUNDS_DIR, { recursive: true })
+    writeFileSync(target, Buffer.from(await file.arrayBuffer()))
+    await rescanAssets()
+    const relative = path.relative(PROJECT_ROOT, target)
+    const asset = listAssets().find((a) => a.path === relative)
+    return c.json({ asset })
+  } catch (error) {
+    return c.json({ error: asError(error) }, 400)
+  }
+})
+
+// ---- promo shots (WingAI screenshot generator) ---------------------------
+
+api.post('/promo-shots', async (c) => {
+  try {
+    const spec = PromoShotSpecSchema.parse(await c.req.json())
+    return c.json({ asset: await createPromoShot(spec) })
+  } catch (error) {
+    return c.json({ error: asError(error) }, 400)
+  }
+})
+
+api.get('/promo-shots/:id', (c) => {
+  const spec = getPromoShotSpec(c.req.param('id'))
+  return spec ? c.json({ spec }) : c.json({ error: 'not found or expired' }, 404)
+})
 
 api.post('/assets/rescan', async (c) => {
   try {
