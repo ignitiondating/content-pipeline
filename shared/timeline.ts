@@ -37,10 +37,15 @@ export interface CutSegment {
 }
 
 /**
- * The message the promo segment presents as WingAI's suggestion: the last
- * own message — the payoff line. Returns -1 when the chat has none.
+ * The message the promo segment presents as WingAI's suggestion: the first
+ * own message that answers her (the reference showcases that first payoff
+ * line, about a third into the clip). Falls back to the last own message;
+ * -1 when the chat has none.
  */
 export function promoTargetIndex(chat: ChatSpec): number {
+  for (let i = 1; i < chat.messages.length; i++) {
+    if (chat.messages[i].from === 'me' && chat.messages[i - 1].from === 'them') return i
+  }
   for (let i = chat.messages.length - 1; i >= 0; i--) {
     if (chat.messages[i].from === 'me') return i
   }
@@ -52,14 +57,20 @@ export interface CutsTimeline {
   durationS: number
 }
 
+// Measured frame-by-frame from the reference clip (freezedetect + scene
+// cuts on the 33.07s @fivestaryra video): intro 2.5, mid bursts 2.5-3.1,
+// promo 2.1, outro montage ~6.5, chat screens 1.5-2.7 with the story
+// opener held longest (~3.1).
 const CUTS = {
   /** Cuts clips target the reference's exact runtime. */
   targetS: 33.0,
-  introS: 2.2,
-  burstS: 2.4,
-  outroS: 4.0,
+  introS: 2.5,
+  burstS: 2.8,
+  outroS: 6.5,
   /** The WingAI-suggests-the-line product moment before the payoff message. */
-  promoS: 2.4,
+  promoS: 2.1,
+  /** Extra hold on the story-reply opener screen. */
+  storyBonusS: 0.8,
   chatBaseS: 1.6,
   chatPerCharS: 0.05,
   chatMinS: 2.0,
@@ -87,11 +98,23 @@ export function buildCutsTimeline(chat: ChatSpec): CutsTimeline {
   )
   const promoAt = promoTargetIndex(chat)
   const storyFade = Boolean(chat.storyReply) && chat.messages.length > 1
-  // A burst follows every message except the last (the outro covers it) and
-  // except after the story screen, which fades to the reply instead.
-  const burstCount = Math.max(0, chat.messages.length - 1 - (storyFade ? 1 : 0))
+  // A burst follows every message except: the last (the outro covers it),
+  // the story screen (fades to the reply instead), and a 'them' message
+  // answered instantly by a non-promo 'me' — in the reference the comeback
+  // pops straight in with no basketball between.
+  const skipBurstAfter = (i: number): boolean => {
+    if (i === 0 && storyFade) return true
+    const next = chat.messages[i + 1]
+    return chat.messages[i].from === 'them' && next?.from === 'me' && i + 1 !== promoAt
+  }
+  let burstCount = 0
+  for (let i = 0; i < chat.messages.length - 1; i++) if (!skipBurstAfter(i)) burstCount++
   const fixedS =
-    CUTS.introS + burstCount * CUTS.burstS + (promoAt >= 0 ? CUTS.promoS : 0) + CUTS.outroS
+    CUTS.introS +
+    burstCount * CUTS.burstS +
+    (promoAt >= 0 ? CUTS.promoS : 0) +
+    (storyFade ? CUTS.storyBonusS : 0) +
+    CUTS.outroS
   const holdTotalS = holds.reduce((a, b) => a + b, 0)
 
   // Message holds scale so the clip lands exactly on the reference runtime;
@@ -103,14 +126,14 @@ export function buildCutsTimeline(chat: ChatSpec): CutsTimeline {
     // The product moment: WingAI suggests the payoff line, then the chat
     // screen reveals it sent — the reference's app-promo beat.
     if (i === promoAt) segments.push({ type: 'promo', visibleCount: i, durS: CUTS.promoS })
+    const bonus = i === 0 && storyFade ? CUTS.storyBonusS : 0
     segments.push({
       type: 'chat',
       visibleCount: i + 1,
-      durS: round(Math.min(CUTS.chatCeilS, Math.max(CUTS.chatFloorS, holds[i] * scale))),
+      durS: round(Math.min(CUTS.chatCeilS, Math.max(CUTS.chatFloorS, holds[i] * scale)) + bonus),
     })
     const isLast = i === chat.messages.length - 1
-    const fadeInstead = i === 0 && storyFade
-    if (!isLast && !fadeInstead) {
+    if (!isLast && !skipBurstAfter(i)) {
       segments.push({ type: 'broll', visibleCount: i + 1, durS: CUTS.burstS })
     }
   })

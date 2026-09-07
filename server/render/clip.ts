@@ -220,9 +220,9 @@ async function renderCuts(
       const storyFade = Boolean(spec.chat.storyReply) && spec.chat.messages.length > 1
       const fade =
         storyFade && segment.visibleCount === 1
-          ? `,fade=t=out:st=${(segment.durS - 0.5).toFixed(3)}:d=0.5`
+          ? `,fade=t=out:st=${(segment.durS - 0.6).toFixed(3)}:d=0.6`
           : storyFade && segment.visibleCount === 2
-            ? ',fade=t=in:st=0:d=0.4'
+            ? ',fade=t=in:st=0:d=0.45'
             : ''
       filters.push(`[${input}:v]${NORM},trim=duration=${segment.durS.toFixed(3)}${fade}[s${i}]`)
     }

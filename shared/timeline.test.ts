@@ -84,20 +84,34 @@ describe('buildCutsTimeline', () => {
     expect(chats.map((s) => s.visibleCount)).toEqual([1, 2, 3, 4, 5])
   })
 
-  it('alternates b-roll and chat one-and-one with the promo before the payoff', () => {
+  it('follows the reference structure: promo on the first answer, later comebacks pop', () => {
     const { segments } = buildCutsTimeline(spec)
     const types = segments.map((s) => s.type).join(',')
-    // Last own message is index 3 ("come over and find out") — the promo
-    // presents it as WingAI's suggestion right before it lands.
-    expect(types).toBe('broll,chat,broll,chat,broll,chat,broll,promo,chat,broll,chat,broll')
+    // msg1(me at index 1) is the first answer to her → burst+promo before it;
+    // msg3(me at index 3) is a later comeback → pops with no burst.
+    expect(types).toBe('broll,chat,broll,promo,chat,broll,chat,chat,broll,chat,broll')
     const promo = segments.find((s) => s.type === 'promo')!
-    expect(promo.visibleCount).toBe(3)
+    expect(promo.visibleCount).toBe(1)
   })
 
-  it('story-reply chats skip the burst after the story screen (fade instead)', () => {
+  it('skips the burst on a them→me instant comeback that is not the promo target', () => {
+    const comeback = chat([
+      ['me', 'shot my shot'],
+      ['them', 'bold of you'],
+      ['me', 'that is the brand'],
+      ['them', 'ok and?'],
+      ['me', 'friday, you and me'],
+    ])
+    const types = buildCutsTimeline(comeback).segments.map((s) => s.type).join(',')
+    // them(1)→me(2) is the first answer → promo; them(3)→me(4) pops.
+    expect(types).toBe('broll,chat,broll,chat,broll,promo,chat,broll,chat,chat,broll')
+  })
+
+  it('holds the story-reply opener longer than the same screen without a story', () => {
     const story = { ...spec, skin: 'instagram' as const, storyReply: true }
-    const types = buildCutsTimeline(story).segments.map((s) => s.type).join(',')
-    expect(types).toBe('broll,chat,chat,broll,chat,broll,promo,chat,broll,chat,broll')
+    const storyChat1 = buildCutsTimeline(story).segments.find((s) => s.type === 'chat')!
+    const plainChat1 = buildCutsTimeline(spec).segments.find((s) => s.type === 'chat')!
+    expect(storyChat1.durS).toBeGreaterThan(plainChat1.durS + 0.4)
   })
 
   it('lands exactly on the 33s reference runtime for typical chats', () => {
