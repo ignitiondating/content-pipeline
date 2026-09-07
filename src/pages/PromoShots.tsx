@@ -67,9 +67,10 @@ export default function PromoShots() {
       <div>
         <h1 className="mb-2 text-2xl font-bold">Promo shots</h1>
         <p className="mb-6 max-w-xl text-sm text-neutral-400">
-          WingAI-branded screenshots for the clip promo beat: the imported conversation plus the
-          suggested reply. Generated PNGs land in <code>library/promo/</code> and rotate into cuts
-          clips automatically.
+          WingAI-branded screenshots: the imported conversation plus the suggested reply. Note:
+          cuts clips now auto-generate a matching shot from their own conversation at render time —
+          use this section for manual one-off shots (posts, carousels, ads). PNGs land in{' '}
+          <code>library/promo/</code>.
         </p>
 
         <div className="mb-5">

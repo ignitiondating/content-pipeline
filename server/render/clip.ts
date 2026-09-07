@@ -3,7 +3,8 @@ import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type { Draft } from '../../shared/formats/draft'
 import { CLIP_LIMITS, type ClipSpec } from '../../shared/formats/clip'
-import { buildClipTimeline, buildCutsTimeline } from '../../shared/timeline'
+import { buildClipTimeline, buildCutsTimeline, promoContentFor } from '../../shared/timeline'
+import { dropPromoShotSpec, stashPromoShotSpec } from './promoShot'
 import { assetsInPathOrder, markAssetUsed, pickAsset, type Asset } from '../assets/catalog'
 import { captureSequence, type CaptureRequest } from '../capture/screenshot'
 import { PROJECT_ROOT } from '../paths'
@@ -138,20 +139,31 @@ async function renderCuts(
     }`,
     outPath: path.join(workdir, `chat_${String(segment.visibleCount).padStart(2, '0')}.png`),
   }))
-  // A real WingAI screenshot from library/promo beats the rendered card.
-  const promoAsset = hasPromo ? pickAsset('promo') : null
-  if (hasPromo && !promoAsset) {
-    captures.push({
-      route: `/render/promo?specId=${draft.id}`,
-      outPath: path.join(workdir, 'promo.png'),
-    })
+  // The promo screenshot is generated from THIS clip's conversation so the
+  // suggested line and bubbles always match the video, reusing the story
+  // photo when there is one.
+  let promoShotId: string | null = null
+  if (hasPromo) {
+    const content = promoContentFor(spec.chat)
+    if (content) {
+      const image = storyAsset ?? pickAsset('background')
+      promoShotId = stashPromoShotSpec({ ...content, imagePath: image?.path })
+      captures.push({
+        route: `/render/promoshot?id=${promoShotId}`,
+        outPath: path.join(workdir, 'promo.png'),
+      })
+    }
   }
   captures.push({
     route: `/render/overlay?specId=${draft.id}`,
     outPath: path.join(workdir, 'hook.png'),
     transparent: true,
   })
-  await captureSequence(captures)
+  try {
+    await captureSequence(captures)
+  } finally {
+    if (promoShotId) dropPromoShotSpec(promoShotId)
+  }
 
   setProgress(0.35, 'encoding')
   const caps = await probeFfmpeg()
@@ -178,10 +190,7 @@ async function renderCuts(
   if (hasPromo) {
     const promoDurS = timeline.segments.find((s) => s.type === 'promo')!.durS
     promoInput = stillBase + stillInputs.size
-    const promoFile = promoAsset
-      ? path.join(PROJECT_ROOT, promoAsset.path)
-      : path.join(workdir, 'promo.png')
-    args.push('-loop', '1', '-t', promoDurS.toFixed(3), '-i', promoFile)
+    args.push('-loop', '1', '-t', promoDurS.toFixed(3), '-i', path.join(workdir, 'promo.png'))
   }
   const hookInput = stillBase + stillInputs.size + (hasPromo ? 1 : 0)
   args.push('-i', path.join(workdir, 'hook.png'))

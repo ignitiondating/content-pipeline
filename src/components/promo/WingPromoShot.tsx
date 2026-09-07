@@ -6,9 +6,9 @@ export interface WingPromoShotSpec {
   /** The imported-conversation photo (story/screenshot), optional. */
   imageUrl?: string
   /** Your sent line (blue bubble). */
-  bubbleMe: string
+  bubbleMe?: string
   /** Her reply (grey bubble). */
-  bubbleThem: string
+  bubbleThem?: string
   /** The WingAI suggested reply shown below. */
   suggestion: string
 }
@@ -101,36 +101,40 @@ export default function WingPromoShot({ spec }: { spec: WingPromoShotSpec }) {
               }}
             />
           )}
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <div
-              style={{
-                background: 'linear-gradient(180deg,#3B82F6 0%,#2563EB 75%)',
-                color: '#FFFFFF',
-                borderRadius: 18,
-                padding: '10px 16px',
-                fontSize: 19,
-                lineHeight: 1.3,
-                maxWidth: '82%',
-              }}
-            >
-              {spec.bubbleMe}
+          {spec.bubbleMe && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div
+                style={{
+                  background: 'linear-gradient(180deg,#3B82F6 0%,#2563EB 75%)',
+                  color: '#FFFFFF',
+                  borderRadius: 18,
+                  padding: '10px 16px',
+                  fontSize: 19,
+                  lineHeight: 1.3,
+                  maxWidth: '82%',
+                }}
+              >
+                {spec.bubbleMe}
+              </div>
             </div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div
-              style={{
-                background: '#26262A',
-                color: '#F5F5F7',
-                borderRadius: 18,
-                padding: '10px 16px',
-                fontSize: 19,
-                lineHeight: 1.3,
-                maxWidth: '82%',
-              }}
-            >
-              {spec.bubbleThem}
+          )}
+          {spec.bubbleThem && (
+            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <div
+                style={{
+                  background: '#26262A',
+                  color: '#F5F5F7',
+                  borderRadius: 18,
+                  padding: '10px 16px',
+                  fontSize: 19,
+                  lineHeight: 1.3,
+                  maxWidth: '82%',
+                }}
+              >
+                {spec.bubbleThem}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Divider like the reference's "AI generated lines" strip */}

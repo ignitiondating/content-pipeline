@@ -37,6 +37,31 @@ export interface CutSegment {
 }
 
 /**
+ * Content for the promo screenshot, derived from the clip's own chat so it
+ * always matches the video: the suggestion is the promo-target message, the
+ * card shows the exchange right before it.
+ */
+export function promoContentFor(chat: ChatSpec): {
+  bubbleMe?: string
+  bubbleThem?: string
+  suggestion: string
+} | null {
+  const target = promoTargetIndex(chat)
+  if (target < 0) return null
+  let bubbleThem: string | undefined
+  let bubbleMe: string | undefined
+  for (let i = target - 1; i >= 0; i--) {
+    const message = chat.messages[i]
+    if (!bubbleThem && message.from === 'them') bubbleThem = message.text
+    else if (bubbleThem && message.from === 'me') {
+      bubbleMe = message.text
+      break
+    }
+  }
+  return { bubbleMe, bubbleThem, suggestion: chat.messages[target].text }
+}
+
+/**
  * The message the promo segment presents as WingAI's suggestion: the first
  * own message that answers her (the reference showcases that first payoff
  * line, about a third into the clip). Falls back to the last own message;

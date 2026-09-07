@@ -9,8 +9,8 @@ import { captureSequence } from '../capture/screenshot'
 export const PromoShotSpecSchema = z.object({
   /** Repo-relative path of a cataloged image asset (library/backgrounds/…). */
   imagePath: z.string().max(300).optional(),
-  bubbleMe: z.string().min(1).max(200),
-  bubbleThem: z.string().min(1).max(200),
+  bubbleMe: z.string().max(200).optional(),
+  bubbleThem: z.string().max(200).optional(),
   suggestion: z.string().min(1).max(300),
 })
 
@@ -25,11 +25,21 @@ export function getPromoShotSpec(id: string): PromoShotSpec | null {
   return entry.spec
 }
 
-/** Renders the WingAI promo screenshot into library/promo and catalogs it. */
-export async function createPromoShot(spec: PromoShotSpec): Promise<Asset> {
+/** Parks a spec for the capture page and returns its id. Callers clean up. */
+export function stashPromoShotSpec(spec: PromoShotSpec): string {
   const id = newId('ps')
   pending.set(id, { spec, expiresAt: Date.now() + 5 * 60_000 })
   for (const [key, entry] of pending) if (entry.expiresAt < Date.now()) pending.delete(key)
+  return id
+}
+
+export function dropPromoShotSpec(id: string): void {
+  pending.delete(id)
+}
+
+/** Renders the WingAI promo screenshot into library/promo and catalogs it. */
+export async function createPromoShot(spec: PromoShotSpec): Promise<Asset> {
+  const id = stashPromoShotSpec(spec)
 
   mkdirSync(PROMO_DIR, { recursive: true })
   const filename = `promo-shot-${new Date().toISOString().replace(/[:.]/g, '-')}.png`

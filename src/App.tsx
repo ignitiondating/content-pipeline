@@ -11,7 +11,6 @@ import PipelineSteps from './components/studio/PipelineSteps'
 import RenderChat from './renderRoutes/RenderChat'
 import RenderSlide from './renderRoutes/RenderSlide'
 import RenderOverlay from './renderRoutes/RenderOverlay'
-import RenderPromo from './renderRoutes/RenderPromo'
 import RenderPromoShot from './renderRoutes/RenderPromoShot'
 import PromoShots from './pages/PromoShots'
 
@@ -35,7 +34,6 @@ export default function App() {
         <Route path="/render/chat" element={<RenderChat />} />
         <Route path="/render/slide" element={<RenderSlide />} />
         <Route path="/render/overlay" element={<RenderOverlay />} />
-        <Route path="/render/promo" element={<RenderPromo />} />
         <Route path="/render/promoshot" element={<RenderPromoShot />} />
       </Routes>
     )

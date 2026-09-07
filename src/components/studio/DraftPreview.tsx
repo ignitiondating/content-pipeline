@@ -2,8 +2,9 @@ import type { Draft } from '@shared/formats/draft'
 import type { CarouselSpec } from '@shared/formats/carousel'
 import type { SlideshowSpec } from '@shared/formats/slideshow'
 import type { ClipSpec } from '@shared/formats/clip'
+import { promoContentFor } from '@shared/timeline'
 import ChatScreen from '../chat/ChatScreen'
-import PromoScreen from '../chat/PromoScreen'
+import WingPromoShot from '../promo/WingPromoShot'
 import SlideCard from '../slide/SlideCard'
 import BrollPlaceholder from './BrollPlaceholder'
 import Scaled from './Scaled'
@@ -59,7 +60,7 @@ export default function DraftPreview({
         {brollBeat ? (
           <BrollPlaceholder />
         ) : promoBeat ? (
-          <PromoScreen spec={spec.chat} />
+          <WingPromoShot spec={{ suggestion: '', ...promoContentFor(spec.chat) }} />
         ) : (
           <ChatScreen spec={spec.chat} mode="zoom" visibleCount={visibleCount} />
         )}
