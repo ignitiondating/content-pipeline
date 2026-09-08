@@ -3,14 +3,14 @@ import { z } from 'zod'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { getDb } from '../db/index'
-import { BACKGROUNDS_DIR, PROJECT_ROOT } from '../paths'
+import { BACKGROUNDS_DIR, BROLL_DIR, FILES_ROOT, MUSIC_DIR } from '../paths'
 import { createPromoShot, getPromoShotSpec, PromoShotSpecSchema } from '../render/promoShot'
 import { FORMATS, DRAFT_STATUSES } from '../../shared/formats/draft'
 import { SLIDESHOW_STYLES } from '../../shared/formats/slideshow'
 import { buildClipTimeline } from '../../shared/timeline'
 import { DEFAULT_EXAMPLES, ExamplesSchema } from '../../shared/examples'
 import { zodIssues } from '../../shared/validate'
-import { listAssets, rescanAssets } from '../assets/catalog'
+import { AUDIO_EXT, IMAGE_EXT, VIDEO_EXT, listAssets, rescanAssets } from '../assets/catalog'
 import { chromiumAvailable } from '../capture/browser'
 import { allSettings, getDraft, getSetting, listDrafts, setSetting, statusCounts, updateDraft } from '../db/repo'
 import { MODELS } from '../generate/client'
@@ -161,17 +161,33 @@ api.post('/assets/upload', async (c) => {
     const body = await c.req.parseBody()
     const file = body.file
     if (!(file instanceof File)) return c.json({ error: 'multipart field "file" is required' }, 400)
-    if (body.kind !== 'background') return c.json({ error: 'kind must be "background"' }, 400)
-    if (!/\.(png|jpe?g|webp)$/i.test(file.name)) {
-      return c.json({ error: 'only png/jpg/webp images are accepted' }, 400)
+
+    const kind = body.kind
+    const ext = path.extname(file.name).toLowerCase()
+    let dir: string
+    if (kind === 'background') {
+      if (!IMAGE_EXT.has(ext)) return c.json({ error: 'backgrounds take png/jpg/webp images' }, 400)
+      dir = BACKGROUNDS_DIR
+    } else if (kind === 'music') {
+      if (!AUDIO_EXT.has(ext)) return c.json({ error: 'music takes mp3/m4a/wav/aac files' }, 400)
+      dir = MUSIC_DIR
+    } else if (kind === 'broll') {
+      if (!VIDEO_EXT.has(ext)) return c.json({ error: 'b-roll takes mp4/mov/webm files' }, 400)
+      if (body.tag !== 'basketball' && body.tag !== '3d') {
+        return c.json({ error: 'b-roll needs tag "basketball" or "3d"' }, 400)
+      }
+      dir = path.join(BROLL_DIR, body.tag)
+    } else {
+      return c.json({ error: 'kind must be background, music or broll' }, 400)
     }
+
     const safe = file.name.replace(/[^\w.-]+/g, '-')
-    let target = path.join(BACKGROUNDS_DIR, safe)
-    if (existsSync(target)) target = path.join(BACKGROUNDS_DIR, `${Date.now()}-${safe}`)
-    mkdirSync(BACKGROUNDS_DIR, { recursive: true })
+    let target = path.join(dir, safe)
+    if (existsSync(target)) target = path.join(dir, `${Date.now()}-${safe}`)
+    mkdirSync(dir, { recursive: true })
     writeFileSync(target, Buffer.from(await file.arrayBuffer()))
     await rescanAssets()
-    const relative = path.relative(PROJECT_ROOT, target)
+    const relative = path.relative(FILES_ROOT, target)
     const asset = listAssets().find((a) => a.path === relative)
     return c.json({ asset })
   } catch (error) {

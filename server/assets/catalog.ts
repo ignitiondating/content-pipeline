@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { getDb, newId, now } from '../db/index'
-import { BACKGROUNDS_DIR, BROLL_DIR, MUSIC_DIR, PROJECT_ROOT, PROMO_DIR } from '../paths'
+import { BACKGROUNDS_DIR, BROLL_DIR, FILES_ROOT, MUSIC_DIR, PROMO_DIR } from '../paths'
 import { probeMedia } from '../render/ffmpeg'
 
 export type AssetKind = 'broll' | 'background' | 'music' | 'promo'
@@ -20,9 +20,9 @@ export interface Asset {
   missing: boolean
 }
 
-const VIDEO_EXT = new Set(['.mp4', '.mov', '.webm', '.m4v'])
-const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp'])
-const AUDIO_EXT = new Set(['.mp3', '.m4a', '.wav', '.aac'])
+export const VIDEO_EXT = new Set(['.mp4', '.mov', '.webm', '.m4v'])
+export const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp'])
+export const AUDIO_EXT = new Set(['.mp3', '.m4a', '.wav', '.aac'])
 
 interface AssetRow {
   id: string
@@ -81,7 +81,7 @@ export async function rescanAssets(): Promise<{ added: number; missing: number; 
   for (const { dir, kind, exts } of sources) {
     for (const file of walk(dir)) {
       if (!exts.has(path.extname(file).toLowerCase())) continue
-      const relative = path.relative(PROJECT_ROOT, file)
+      const relative = path.relative(FILES_ROOT, file)
       seen.add(relative)
       const existing = db.prepare('SELECT id FROM assets WHERE path = ?').get(relative)
       if (existing) {
@@ -111,7 +111,7 @@ export async function rescanAssets(): Promise<{ added: number; missing: number; 
   const all = db.prepare('SELECT path FROM assets').all() as Array<{ path: string }>
   let missing = 0
   for (const row of all) {
-    if (!seen.has(row.path) && !existsSync(path.join(PROJECT_ROOT, row.path))) {
+    if (!seen.has(row.path) && !existsSync(path.join(FILES_ROOT, row.path))) {
       db.prepare('UPDATE assets SET missing = 1 WHERE path = ?').run(row.path)
       missing++
     }

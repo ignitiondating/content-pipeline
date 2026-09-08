@@ -1,0 +1,9 @@
+node_modules
+vendor
+dist
+library
+out
+data/studio.db*
+.env
+.git
+*.log

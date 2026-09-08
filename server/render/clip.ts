@@ -7,7 +7,7 @@ import { buildClipTimeline, buildCutsTimeline, promoContentFor } from '../../sha
 import { dropPromoShotSpec, stashPromoShotSpec } from './promoShot'
 import { assetsInPathOrder, markAssetUsed, pickAsset, type Asset } from '../assets/catalog'
 import { captureSequence, type CaptureRequest } from '../capture/screenshot'
-import { PROJECT_ROOT } from '../paths'
+import { FILES_ROOT } from '../paths'
 import { probeFfmpeg, probeMedia, type FfmpegCapabilities } from './ffmpeg'
 import type { ProgressFn } from './carousel'
 
@@ -79,13 +79,13 @@ async function renderOverlay(
   const durationS = timeline.durationS
 
   const args: string[] = ['-y', '-hide_banner']
-  args.push('-stream_loop', '-1', '-t', durationS.toFixed(3), '-i', path.join(PROJECT_ROOT, broll.path))
+  args.push('-stream_loop', '-1', '-t', durationS.toFixed(3), '-i', path.join(FILES_ROOT, broll.path))
   for (let i = 0; i < timeline.states.length; i++) {
     args.push('-i', path.join(workdir, `state_${String(i).padStart(2, '0')}.png`))
   }
   args.push('-i', path.join(workdir, 'hook.png'))
   const hookInput = timeline.states.length + 1
-  if (music) args.push('-i', path.join(PROJECT_ROOT, music.path))
+  if (music) args.push('-i', path.join(FILES_ROOT, music.path))
 
   const filters: string[] = [`[0:v]${NORM}[bg]`]
   let current = 'bg'
@@ -173,7 +173,7 @@ async function renderCuts(
   const args: string[] = ['-y', '-hide_banner']
   for (const asset of brolls) {
     if (brollInputs.has(asset.path)) continue
-    const full = path.join(PROJECT_ROOT, asset.path)
+    const full = path.join(FILES_ROOT, asset.path)
     const durS = asset.durationS ?? (await probeMedia(full)).durationS ?? 8
     brollInputs.set(asset.path, { input: brollInputs.size, durS, uses: 0 })
     args.push('-i', full)
@@ -194,7 +194,7 @@ async function renderCuts(
   }
   const hookInput = stillBase + stillInputs.size + (hasPromo ? 1 : 0)
   args.push('-i', path.join(workdir, 'hook.png'))
-  if (music) args.push('-i', path.join(PROJECT_ROOT, music.path))
+  if (music) args.push('-i', path.join(FILES_ROOT, music.path))
 
   const filters: string[] = []
   const labels: string[] = []

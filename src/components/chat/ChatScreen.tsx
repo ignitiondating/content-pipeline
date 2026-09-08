@@ -20,7 +20,9 @@ interface ChatScreenProps {
 const meBubbleBg = (spec: ChatSpec) =>
   spec.skin === 'instagram' ? CHAT_SKINS.instagram.bubbleMe : CHAT_THEMES[spec.theme].bubbleMe
 
-const FONT_STACK = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif"
+// SF on macOS; Inter (bundled, OFL) on Linux hosts — with a slight negative
+// tracking on bubbles it reads close enough to pass as an iPhone screenshot.
+const FONT_STACK = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif"
 
 function Avatar({ spec, size }: { spec: ChatSpec; size: number }) {
   const theme = CHAT_THEMES[spec.theme]
@@ -106,6 +108,7 @@ function Bubble({ spec, message, isLast }: { spec: ChatSpec; message: ChatMessag
               padding: '9px 14px',
               fontSize: 17,
               lineHeight: 1.28,
+              letterSpacing: '-0.01em',
               wordBreak: 'break-word',
               whiteSpace: 'pre-wrap',
             }}
@@ -315,6 +318,7 @@ export default function ChatScreen({
                     padding: '18px 26px',
                     fontSize: 31,
                     lineHeight: 1.24,
+                    letterSpacing: '-0.01em',
                     wordBreak: 'break-word',
                     whiteSpace: 'pre-wrap',
                   }}

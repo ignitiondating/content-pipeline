@@ -69,6 +69,17 @@ vendor/    Vendored FFmpeg — Homebrew's build can't burn text (gitignored).
 
 Everything is open-source dependencies and local state; `data/studio.db` is the only database.
 
+## Deploy (Railway)
+
+The repo ships a `Dockerfile` (Playwright base image + vendored Linux FFmpeg + built SPA served by the API) and a `railway.json`. To deploy:
+
+1. Railway → New Service → Deploy from GitHub repo (`ignitiondating/content-pipeline`). The Dockerfile is picked up automatically.
+2. Attach a **volume** mounted at `/data` — the database, uploaded assets and exports live there (`STATE_DIR=/data` is set in the image).
+3. Set the `ANTHROPIC_API_KEY` variable. Nothing else is required; Railway's `PORT` is honored automatically.
+4. Generate a public domain and share it with the team.
+
+Cloud differences vs. running on a Mac: assets are uploaded through the Assets page instead of dropped into folders, chat screenshots render with Inter instead of the Apple system font (close, but check a carousel before shipping), and encoding uses libx264 (slower). ⚠️ **There is no authentication yet** — anyone with the URL can use the studio and spend API credits; keep the URL private until auth lands.
+
 ## Tests
 
 ```bash

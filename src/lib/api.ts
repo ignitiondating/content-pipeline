@@ -87,10 +87,11 @@ export const api = {
   markPosted: (draftId: string) =>
     request<{ draft: Draft }>(`/api/exports/${draftId}/posted`, { method: 'POST' }),
   assets: () => request<{ assets: AssetItem[] }>('/api/assets'),
-  uploadAsset: (file: File, kind: 'background') => {
+  uploadAsset: (file: File, kind: 'background' | 'music' | 'broll', tag?: 'basketball' | '3d') => {
     const form = new FormData()
     form.append('file', file)
     form.append('kind', kind)
+    if (tag) form.append('tag', tag)
     return request<{ asset: AssetItem }>('/api/assets/upload', { method: 'POST', body: form })
   },
   createPromoShot: (body: { imagePath?: string; bubbleMe: string; bubbleThem: string; suggestion: string }) =>
