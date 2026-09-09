@@ -107,7 +107,7 @@ export default function DraftEditor() {
   const previewSpec = parsed.spec ?? draft.spec
 
   return (
-    <div className="flex gap-8">
+    <div className="flex flex-col gap-8 lg:flex-row">
       <div className="min-w-0 flex-1">
         <h1 className="mb-4 text-2xl font-bold">Edit draft</h1>
         <div className="mb-4 grid gap-3">
@@ -176,8 +176,8 @@ export default function DraftEditor() {
         </div>
       </div>
 
-      <div className="w-[360px] shrink-0">
-        <div className="sticky top-6">
+      <div className="w-full shrink-0 lg:w-[360px]">
+        <div className="flex flex-col items-center lg:sticky lg:top-6 lg:items-stretch">
           <DraftPreview
             draft={{ format: draft.format, spec: previewSpec as Draft['spec'] }}
             height={560}

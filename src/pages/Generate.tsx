@@ -310,7 +310,7 @@ function ExamplePanel({
   }
 
   return (
-    <div className="sticky top-6">
+    <div className="lg:sticky lg:top-6">
       <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Example</div>
       <div className="flex justify-center">{preview}</div>
       <p className="mt-3 text-sm text-neutral-400">{caption}</p>
@@ -385,7 +385,7 @@ export default function Generate() {
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
       <div>
         <h1 className="mb-6 text-2xl font-bold">Generate</h1>
-        <div className="mb-4 grid grid-cols-3 gap-3">
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {FORMAT_CARDS.map((card) => (
             <button
               key={card.key}
@@ -401,7 +401,7 @@ export default function Generate() {
         </div>
 
         {format === 'carousel' && (
-          <div className="mb-4 grid grid-cols-3 gap-3">
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {CAROUSEL_STYLES.map((s) => (
               <button
                 key={s.key}
@@ -435,7 +435,7 @@ export default function Generate() {
 
         {format === 'clip' && (
           <>
-            <div className="mb-3 grid grid-cols-3 gap-3">
+            <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
               {STRUCTURES.map((s) => (
                 <button
                   key={s.key}
@@ -449,7 +449,7 @@ export default function Generate() {
                 </button>
               ))}
             </div>
-            <div className="mb-4 grid grid-cols-3 gap-3">
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               {BROLL_OPTIONS.map((b) => (
                 <button
                   key={b.key}
@@ -467,7 +467,7 @@ export default function Generate() {
         )}
 
         {(format === 'clip' || (format === 'carousel' && carouselStyle === 'zoom')) && (
-          <div className="mb-4 grid grid-cols-3 gap-3">
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {SKIN_OPTIONS.map((s) => (
               <button
                 key={s.key}
@@ -519,7 +519,7 @@ export default function Generate() {
         </button>
       </div>
 
-      <div className="hidden lg:block">
+      <div className="mt-4 lg:mt-0">
         <ExamplePanel
           key={`${format}-${style}-${structure}-${brollTag}-${carouselStyle}`}
           examples={examples}

@@ -174,8 +174,8 @@ export default function PromoShots() {
         )}
       </div>
 
-      <div className="hidden lg:block">
-        <div className="sticky top-6">
+      <div className="mt-4 lg:mt-0">
+        <div className="flex flex-col items-center lg:sticky lg:top-6 lg:items-stretch">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Preview</div>
           <Scaled height={620}>
             <WingPromoShot

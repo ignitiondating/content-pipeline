@@ -112,7 +112,8 @@ export default function Assets() {
         lowest opens the clip, highest closes it.
       </p>
       {message && <div className="mb-4 text-sm text-neutral-400">{message}</div>}
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[560px] text-sm">
         <thead>
           <tr className="border-b border-neutral-800 text-left text-neutral-500">
             <th className="py-2"></th>
@@ -140,6 +141,7 @@ export default function Assets() {
           ))}
         </tbody>
       </table>
+      </div>
       {assets.length === 0 && <p className="mt-4 text-neutral-500">No assets cataloged yet.</p>}
     </div>
   )

@@ -174,7 +174,10 @@ export default function RenderQueue() {
 
       <Section title="Ready to export" count={groups.ready.length}>
         {groups.ready.map(({ latest: job, count }) => (
-          <div key={job.draft_id} className="flex gap-4 rounded-xl border border-neutral-800 p-4">
+          <div
+            key={job.draft_id}
+            className="flex flex-col gap-4 rounded-xl border border-neutral-800 p-4 sm:flex-row"
+          >
             <Media job={job} height={210} />
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="text-sm font-medium">{job.caption}</div>
@@ -214,7 +217,7 @@ export default function RenderQueue() {
           >
             <Media job={job} height={56} compact />
             <span className="min-w-0 flex-1 truncate text-sm text-neutral-300">{job.caption}</span>
-            <span className="shrink-0 text-xs text-neutral-600">{metaLine(job, count)}</span>
+            <span className="hidden shrink-0 text-xs text-neutral-600 sm:inline">{metaLine(job, count)}</span>
             <span className="shrink-0 text-xs text-emerald-500">exported ✓</span>
             {job.outputs.length > 0 && (
               <button

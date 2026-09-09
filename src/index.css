@@ -20,6 +20,13 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
+/* iOS Safari zooms into focused inputs below 16px — keep them at 16px. */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
 /* Capture pages set their own background (or none, for transparent PNGs). */
 body:has([data-capture-page]) {
   background: transparent;
