@@ -1,6 +1,9 @@
 # Must match the version of the `playwright` npm package (package-lock).
 FROM mcr.microsoft.com/playwright:v1.62.1-jammy AS builder
 WORKDIR /app
+# setup-ffmpeg.mjs shells out to curl + unzip; the base image lacks unzip.
+RUN apt-get update && apt-get install -y --no-install-recommends unzip curl \
+    && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
