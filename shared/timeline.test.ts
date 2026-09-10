@@ -120,6 +120,37 @@ describe('buildCutsTimeline', () => {
     expect(buildCutsTimeline(story).durationS).toBeCloseTo(33, 1)
   })
 
+  it('honors a pinned chat hold and rescales the free ones to keep 33s', () => {
+    const pinned = buildCutsTimeline(spec, { chatHoldsS: { '2': 5 } })
+    const chats = pinned.segments.filter((s) => s.type === 'chat')
+    expect(chats.find((s) => s.visibleCount === 2)!.durS).toBe(5)
+    expect(pinned.durationS).toBeCloseTo(33, 1)
+    // The other holds absorbed the difference instead of staying put.
+    const free = buildCutsTimeline(spec).segments.filter((s) => s.type === 'chat')
+    expect(chats.find((s) => s.visibleCount === 3)!.durS).not.toBe(
+      free.find((s) => s.visibleCount === 3)!.durS,
+    )
+  })
+
+  it('honors pinned b-roll beats, intro, outro and promo', () => {
+    const t = buildCutsTimeline(spec, {
+      introS: 4,
+      outroS: 8,
+      promoS: 3,
+      brollBeatsS: { '0': 5 },
+    })
+    const brolls = t.segments.filter((s) => s.type === 'broll')
+    expect(brolls[0].durS).toBe(4)
+    expect(brolls[brolls.length - 1].durS).toBe(8)
+    expect(brolls[1].durS).toBe(5)
+    expect(t.segments.find((s) => s.type === 'promo')!.durS).toBe(3)
+  })
+
+  it('lets the clip run long when the pins alone exceed the target', () => {
+    const t = buildCutsTimeline(spec, { introS: 15, outroS: 20, promoS: 15 })
+    expect(t.durationS).toBeGreaterThan(33)
+  })
+
   it('keeps the total inside the clip limits', () => {
     const long = chat(
       Array.from({ length: 7 }, (_, i) => [i % 2 ? 'me' : 'them', 'a fairly long message to inflate the timing here']),

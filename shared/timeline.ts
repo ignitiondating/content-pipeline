@@ -82,6 +82,17 @@ export interface CutsTimeline {
   durationS: number
 }
 
+/** Per-beat duration overrides from the storyboard editor (see ClipSpec). */
+export interface ClipTiming {
+  /** Keyed by visibleCount (message number), so text edits don't shift them. */
+  chatHoldsS?: Record<string, number>
+  /** Keyed by burst ordinal (0 = first mid-clip burst). */
+  brollBeatsS?: Record<string, number>
+  introS?: number
+  outroS?: number
+  promoS?: number
+}
+
 // Measured frame-by-frame from the reference clip (freezedetect + scene
 // cuts on the 33.07s @fivestaryra video): intro 2.5, mid bursts 2.5-3.1,
 // promo 2.1, outro montage ~6.5, chat screens 1.5-2.7 with the story
@@ -117,7 +128,16 @@ const CUTS = {
  * and one, with the WingAI promo right before the payoff message, closing
  * on the outro burst (the operator's last-numbered file).
  */
-export function buildCutsTimeline(chat: ChatSpec): CutsTimeline {
+export function buildCutsTimeline(chat: ChatSpec, timing?: ClipTiming): CutsTimeline {
+  // A pinned hold keeps its exact length; the rest still scale to hit the
+  // reference runtime, so editing one beat doesn't distort the whole clip.
+  const pinnedChat = (i: number): number | undefined => timing?.chatHoldsS?.[String(i + 1)]
+  const introS = timing?.introS ?? CUTS.introS
+  const outroS = timing?.outroS ?? CUTS.outroS
+  const promoDurS = timing?.promoS ?? CUTS.promoS
+  const burstDurS = (ordinal: number): number =>
+    timing?.brollBeatsS?.[String(ordinal)] ?? CUTS.burstS
+
   const holds = chat.messages.map((m) =>
     Math.min(CUTS.chatMaxS, Math.max(CUTS.chatMinS, CUTS.chatBaseS + m.text.length * CUTS.chatPerCharS)),
   )
@@ -133,36 +153,53 @@ export function buildCutsTimeline(chat: ChatSpec): CutsTimeline {
     return chat.messages[i].from === 'them' && next?.from === 'me' && i + 1 !== promoAt
   }
   let burstCount = 0
-  for (let i = 0; i < chat.messages.length - 1; i++) if (!skipBurstAfter(i)) burstCount++
+  let burstFixedS = 0
+  for (let i = 0; i < chat.messages.length - 1; i++) {
+    if (skipBurstAfter(i)) continue
+    burstFixedS += burstDurS(burstCount)
+    burstCount++
+  }
+  // Pinned holds count as fixed time; only the free ones absorb the scaling.
+  const pinnedTotalS = chat.messages.reduce((sum, _, i) => sum + (pinnedChat(i) ?? 0), 0)
+  const freeTotalS = chat.messages.reduce(
+    (sum, _, i) => sum + (pinnedChat(i) === undefined ? holds[i] : 0),
+    0,
+  )
   const fixedS =
-    CUTS.introS +
-    burstCount * CUTS.burstS +
-    (promoAt >= 0 ? CUTS.promoS : 0) +
+    introS +
+    burstFixedS +
+    (promoAt >= 0 ? promoDurS : 0) +
     (storyFade ? CUTS.storyBonusS : 0) +
-    CUTS.outroS
-  const holdTotalS = holds.reduce((a, b) => a + b, 0)
+    outroS +
+    pinnedTotalS
 
-  // Message holds scale so the clip lands exactly on the reference runtime;
-  // per-hold floor/ceiling means extreme chats land near it instead.
-  const scale = holdTotalS > 0 ? Math.max(0, CUTS.targetS - fixedS) / holdTotalS : 1
+  // Free holds scale so the clip lands on the reference runtime; per-hold
+  // floor/ceiling means extreme chats land near it instead.
+  const scale = freeTotalS > 0 ? Math.max(0, CUTS.targetS - fixedS) / freeTotalS : 1
 
-  const segments: CutSegment[] = [{ type: 'broll', visibleCount: 0, durS: CUTS.introS }]
+  const segments: CutSegment[] = [{ type: 'broll', visibleCount: 0, durS: introS }]
+  let burstOrdinal = 0
   chat.messages.forEach((_, i) => {
     // The product moment: WingAI suggests the payoff line, then the chat
     // screen reveals it sent — the reference's app-promo beat.
-    if (i === promoAt) segments.push({ type: 'promo', visibleCount: i, durS: CUTS.promoS })
+    if (i === promoAt) segments.push({ type: 'promo', visibleCount: i, durS: promoDurS })
     const bonus = i === 0 && storyFade ? CUTS.storyBonusS : 0
+    const pinned = pinnedChat(i)
     segments.push({
       type: 'chat',
       visibleCount: i + 1,
-      durS: round(Math.min(CUTS.chatCeilS, Math.max(CUTS.chatFloorS, holds[i] * scale)) + bonus),
+      durS:
+        pinned !== undefined
+          ? round(pinned)
+          : round(Math.min(CUTS.chatCeilS, Math.max(CUTS.chatFloorS, holds[i] * scale)) + bonus),
     })
     const isLast = i === chat.messages.length - 1
     if (!isLast && !skipBurstAfter(i)) {
-      segments.push({ type: 'broll', visibleCount: i + 1, durS: CUTS.burstS })
+      segments.push({ type: 'broll', visibleCount: i + 1, durS: burstDurS(burstOrdinal) })
+      burstOrdinal++
     }
   })
-  segments.push({ type: 'broll', visibleCount: chat.messages.length, durS: CUTS.outroS })
+  segments.push({ type: 'broll', visibleCount: chat.messages.length, durS: outroS })
 
   return { segments, durationS: round(segments.reduce((a, s) => a + s.durS, 0)) }
 }

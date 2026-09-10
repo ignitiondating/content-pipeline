@@ -23,6 +23,27 @@ export const ClipSpecSchema = z.object({
   brollTag: z.enum(BROLL_TAGS),
   /** Mux a music track from library/music. Trending sound is added in-app at post time. */
   withMusic: z.boolean(),
+  /**
+   * Exact clips for this video, in order. Without it the renderer walks the
+   * tag's files by filename (nba-01, nba-02, …), which stays the default.
+   */
+  brollPaths: z.array(z.string().max(300)).max(20).optional(),
+  /** Exact photo for the story-reply opener; otherwise rotation picks one. */
+  storyImagePath: z.string().max(300).optional(),
+  /**
+   * Per-beat duration overrides in seconds. Keys are stable across text
+   * edits: chat holds by visibleCount, b-roll beats by burst ordinal.
+   * Anything absent is computed by the solver as usual.
+   */
+  timing: z
+    .object({
+      chatHoldsS: z.record(z.string(), z.number().min(0.4).max(15)).optional(),
+      brollBeatsS: z.record(z.string(), z.number().min(0.4).max(15)).optional(),
+      introS: z.number().min(0.4).max(15).optional(),
+      outroS: z.number().min(0.4).max(20).optional(),
+      promoS: z.number().min(0.4).max(15).optional(),
+    })
+    .optional(),
 })
 
 export type ClipSpec = z.infer<typeof ClipSpecSchema>

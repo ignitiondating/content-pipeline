@@ -5,7 +5,7 @@ import type { Draft } from '../../shared/formats/draft'
 import { CLIP_LIMITS, type ClipSpec } from '../../shared/formats/clip'
 import { buildClipTimeline, buildCutsTimeline, promoContentFor } from '../../shared/timeline'
 import { dropPromoShotSpec, stashPromoShotSpec } from './promoShot'
-import { assetsInPathOrder, markAssetUsed, pickAsset, type Asset } from '../assets/catalog'
+import { assetsInPathOrder, listAssets, markAssetUsed, pickAsset, type Asset } from '../assets/catalog'
 import { captureSequence, type CaptureRequest } from '../capture/screenshot'
 import { FILES_ROOT } from '../paths'
 import { probeFfmpeg, probeMedia, type FfmpegCapabilities } from './ffmpeg'
@@ -30,13 +30,21 @@ export async function renderClip(
     // The reference format alternates DIFFERENT highlights per hype burst.
     // Bursts follow the operator's filename numbering (nba-01, nba-02, …),
     // wrapping around when the clip has more bursts than files.
-    const burstCount = buildCutsTimeline(spec.chat).segments.filter((s) => s.type === 'broll').length
-    const ordered = assetsInPathOrder('broll', spec.brollTag)
+    const burstCount = buildCutsTimeline(spec.chat, spec.timing).segments.filter(
+      (s) => s.type === 'broll',
+    ).length
+    // Explicit picks from the storyboard win; otherwise walk the tag's files
+    // by filename (nba-01, nba-02, …), which stays the default.
+    const chosen = spec.brollPaths?.length
+      ? spec.brollPaths
+          .map((p) => listAssets().find((a) => a.path === p && !a.missing))
+          .filter((a): a is Asset => Boolean(a))
+      : []
+    const ordered = chosen.length ? chosen : assetsInPathOrder('broll', spec.brollTag)
     if (ordered.length === 0) throw noBroll()
     const n = ordered.length
-    // Strictly consecutive through the numbered files (01, 02, 03, …); the
-    // outro is always the last file. A file only repeats when the clip has
-    // more bursts than the library has files.
+    // The outro closes on the last file; a file only repeats when the clip
+    // has more bursts than there are clips to spend.
     const brolls = Array.from({ length: burstCount }, (_, k) => {
       if (burstCount > 1 && k === burstCount - 1) return ordered[n - 1]
       return ordered[k % n]
@@ -123,15 +131,19 @@ async function renderCuts(
   workdir: string,
   setProgress: ProgressFn,
 ): Promise<void> {
-  const timeline = buildCutsTimeline(spec.chat)
+  const timeline = buildCutsTimeline(spec.chat, spec.timing)
   const chatSegments = timeline.segments.filter((s) => s.type === 'chat')
   const hasPromo = timeline.segments.some((s) => s.type === 'promo')
 
   setProgress(0.05, `capturing ${chatSegments.length} chat screens`)
   // Zoomed-DM screens: only the previous message + the new one, huge.
   // Instagram story-reply openers get a photo from library/backgrounds.
-  const storyAsset =
-    spec.chat.skin === 'instagram' && spec.chat.storyReply ? pickAsset('background') : null
+  const wantsStory = spec.chat.skin === 'instagram' && spec.chat.storyReply
+  const storyAsset = wantsStory
+    ? (spec.storyImagePath
+        ? (listAssets().find((a) => a.path === spec.storyImagePath && !a.missing) ?? null)
+        : pickAsset('background'))
+    : null
   const story = storyAsset ? `&story=${encodeURIComponent(`/files/${storyAsset.path}`)}` : ''
   const captures: CaptureRequest[] = chatSegments.map((segment) => ({
     route: `/render/chat?specId=${draft.id}&zoom=1&visible=${segment.visibleCount}${
@@ -146,7 +158,9 @@ async function renderCuts(
   if (hasPromo) {
     const content = promoContentFor(spec.chat)
     if (content) {
-      const image = storyAsset ?? pickAsset('background')
+      const image = storyAsset ?? (spec.storyImagePath
+        ? listAssets().find((a) => a.path === spec.storyImagePath && !a.missing)
+        : null) ?? pickAsset('background')
       promoShotId = stashPromoShotSpec({ ...content, imagePath: image?.path })
       captures.push({
         route: `/render/promoshot?id=${promoShotId}`,
