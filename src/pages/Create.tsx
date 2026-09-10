@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Draft } from '@shared/formats/draft'
+import type { ClipSpec } from '@shared/formats/clip'
+import type { CarouselSpec } from '@shared/formats/carousel'
+import type { SlideshowSpec } from '@shared/formats/slideshow'
 import { DEFAULT_EXAMPLES, type Examples } from '@shared/examples'
 import DraftPreview from '../components/studio/DraftPreview'
+import Storyboard from '../components/studio/Storyboard'
+import ConversationEditor from '../components/studio/ConversationEditor'
+import AssetPicker from '../components/studio/AssetPicker'
 import Scaled from '../components/studio/Scaled'
 import Toast, { useToast } from '../components/studio/Toast'
 import ChatScreen from '../components/chat/ChatScreen'
@@ -48,7 +54,7 @@ const SLIDESHOW_STYLES = [
   { key: 'date_ideas', label: 'Date ideas' },
 ] as const
 
-const STEPS = ['Format', 'Setup', 'Pick', 'Make', 'Done']
+const STEPS = ['Format', 'Idea', 'Pick', 'Edit', 'Make', 'Done']
 
 function StepBar({ current }: { current: number }) {
   return (
@@ -88,6 +94,7 @@ export default function Create() {
 
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [chosen, setChosen] = useState<Draft | null>(null)
+  const [edited, setEdited] = useState<Draft['spec'] | null>(null)
   const [job, setJob] = useState<Job | null>(null)
   const [outputs, setOutputs] = useState<string[]>([])
   const [exported, setExported] = useState(false)
@@ -129,13 +136,20 @@ export default function Create() {
   }
 
   const choose = async (draft: Draft) => {
+    setChosen(draft)
+    setEdited(draft.spec)
+    setStep(3)
+  }
+
+  // Save whatever was edited, then render — the wizard's point of no return.
+  const renderFinal = async () => {
+    if (!chosen) return
     setBusy(true)
     setError(null)
     try {
-      await api.patchDraft(draft.id, { status: 'approved' })
-      setChosen(draft)
-      const { jobId } = await api.render(draft.id)
-      setStep(3)
+      await api.patchDraft(chosen.id, { spec: edited, status: 'approved' })
+      const { jobId } = await api.render(chosen.id)
+      setStep(4)
       pollTimer.current = window.setInterval(async () => {
         try {
           const r = await api.job(jobId)
@@ -147,7 +161,7 @@ export default function Create() {
               await api.exportJob(jobId).catch(() => {})
               setExported(true)
             }
-            setStep(4)
+            setStep(5)
           }
         } catch {
           // keep polling; a transient error shouldn't kill the wizard
@@ -177,6 +191,7 @@ export default function Create() {
     setStep(0)
     setDrafts([])
     setChosen(null)
+    setEdited(null)
     setJob(null)
     setOutputs([])
     setExported(false)
@@ -238,7 +253,29 @@ export default function Create() {
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div>
             <h2 className="mb-1 text-lg font-semibold">{formatCard.title}</h2>
-            <p className="mb-5 text-sm text-neutral-400">{formatCard.blurb}</p>
+            <p className="mb-4 text-sm text-neutral-400">{formatCard.blurb}</p>
+
+            {/* Tyler couldn't tell what the AI decides vs what he does. */}
+            <div className="mb-5 grid gap-3 rounded-xl border border-neutral-800 p-4 sm:grid-cols-2">
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-wing-400">
+                  You decide
+                </div>
+                <p className="text-xs text-neutral-400">
+                  The format, the style, which clips are used — and after Claude writes, every
+                  message, the order and the timing.
+                </p>
+              </div>
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-neutral-400">
+                  Claude writes
+                </div>
+                <p className="text-xs text-neutral-400">
+                  Three versions of the conversation with their caption and hashtags. You pick one
+                  and edit it before anything renders.
+                </p>
+              </div>
+            </div>
 
             <label className="mb-2 block text-sm font-medium">What should it be about?</label>
             <textarea
@@ -273,8 +310,9 @@ export default function Create() {
                   ))}
                 </div>
                 <p className="mb-5 rounded-lg border border-neutral-800 p-3 text-xs text-neutral-400">
-                  The basketball clips come from your library and the WingAI app screenshot is
-                  generated automatically from this conversation. Nothing to prepare.
+                  By default the basketball clips come from your library in order and the WingAI
+                  app screenshot is generated from the conversation. You can pick exact clips in
+                  the next-but-one step.
                 </p>
               </>
             )}
@@ -321,7 +359,7 @@ export default function Create() {
 
           <div className="hidden lg:block">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
-              Example
+              Example — not your video
             </div>
             <Scaled height={420}>
               {format === 'slideshow' ? (
@@ -386,8 +424,162 @@ export default function Create() {
         </div>
       )}
 
-      {/* 4 — making */}
-      {step === 3 && (
+      {/* 4 — edit everything before committing to a render */}
+      {step === 3 && edited && (
+        <div>
+          <h2 className="mb-1 text-lg font-semibold">Edit before rendering</h2>
+          <p className="mb-5 text-sm text-neutral-400">
+            This is the real structure of your {format === 'clip' ? 'video' : 'post'}. Change any
+            message, swap the clips, retime a beat — nothing is final until you render.
+          </p>
+
+          {format === 'clip' && (edited as ClipSpec).structure === 'cuts' ? (
+            <Storyboard spec={edited as ClipSpec} onChange={(spec) => setEdited(spec)} />
+          ) : (
+            <div className="grid gap-8 lg:grid-cols-[340px_minmax(0,1fr)]">
+              <div className="flex justify-center lg:block">
+                <DraftPreview
+                  draft={{ format: chosen!.format, spec: edited }}
+                  height={440}
+                  slideIndex={0}
+                />
+              </div>
+              <div className="min-w-0">
+                {format === 'clip' && (
+                  <>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                      Conversation
+                    </div>
+                    <ConversationEditor
+                      messages={(edited as ClipSpec).chat.messages}
+                      onChange={(messages) => {
+                        const spec = edited as ClipSpec
+                        setEdited({ ...spec, chat: { ...spec.chat, messages } })
+                      }}
+                    />
+                    <div className="mt-5">
+                      <AssetPicker
+                        tag={(edited as ClipSpec).brollTag}
+                        selected={(edited as ClipSpec).brollPaths ?? []}
+                        onChange={(paths) => {
+                          const spec = edited as ClipSpec
+                          setEdited({ ...spec, brollPaths: paths.length ? paths : undefined })
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {format === 'carousel' && (edited as CarouselSpec).chat && (
+                  <>
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                      Conversation
+                    </div>
+                    <ConversationEditor
+                      messages={(edited as CarouselSpec).chat!.messages}
+                      onChange={(messages) => {
+                        const spec = edited as CarouselSpec
+                        setEdited({ ...spec, chat: { ...spec.chat!, messages } })
+                      }}
+                    />
+                  </>
+                )}
+
+                {format === 'carousel' && !(edited as CarouselSpec).chat && (
+                  <div className="flex flex-col gap-5">
+                    {((edited as CarouselSpec).slides ?? []).map((slide, si) => (
+                      <div key={si}>
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                          Screen {si + 1}
+                        </div>
+                        <ConversationEditor
+                          messages={slide.messages}
+                          onChange={(messages) => {
+                            const spec = edited as CarouselSpec
+                            setEdited({
+                              ...spec,
+                              slides: (spec.slides ?? []).map((s, i) =>
+                                i === si ? { ...s, messages } : s,
+                              ),
+                            })
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {format === 'slideshow' && (
+                  <div className="flex flex-col gap-4">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                      Slides
+                    </div>
+                    {(edited as SlideshowSpec).slides.map((slide, si) => (
+                      <div key={si} className="rounded-xl border border-neutral-800 p-3">
+                        <input
+                          value={slide.title}
+                          onChange={(e) => {
+                            const spec = edited as SlideshowSpec
+                            setEdited({
+                              ...spec,
+                              slides: spec.slides.map((s, i) =>
+                                i === si ? { ...s, title: e.target.value } : s,
+                              ),
+                            })
+                          }}
+                          className="mb-2 w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 font-medium"
+                        />
+                        {(slide.lines ?? []).map((line, li) => (
+                          <input
+                            key={li}
+                            value={line}
+                            onChange={(e) => {
+                              const spec = edited as SlideshowSpec
+                              setEdited({
+                                ...spec,
+                                slides: spec.slides.map((s, i) =>
+                                  i === si
+                                    ? {
+                                        ...s,
+                                        lines: (s.lines ?? []).map((l, index) =>
+                                          index === li ? e.target.value : l,
+                                        ),
+                                      }
+                                    : s,
+                                ),
+                              })
+                            }}
+                            className="mb-1 w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm"
+                          />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 flex flex-wrap gap-2">
+            <button
+              onClick={() => setStep(2)}
+              className="rounded-lg border border-neutral-700 px-4 py-2 text-sm hover:border-neutral-500"
+            >
+              Back
+            </button>
+            <button
+              onClick={renderFinal}
+              disabled={busy}
+              className="rounded-lg bg-wing-500 px-5 py-2 font-medium hover:bg-wing-400 disabled:opacity-50"
+            >
+              {busy ? 'Starting…' : `Render final ${format === 'clip' ? 'video' : 'images'} →`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 5 — making */}
+      {step === 4 && (
         <div className="max-w-md">
           <h2 className="mb-1 text-lg font-semibold">
             Making your {format === 'clip' ? 'video' : 'images'}…
@@ -407,8 +599,8 @@ export default function Create() {
         </div>
       )}
 
-      {/* 5 — done */}
-      {step === 4 && (
+      {/* 6 — done */}
+      {step === 5 && (
         <div className="grid gap-8 lg:grid-cols-[340px_minmax(0,1fr)]">
           <div className="flex justify-center lg:block">
             {outputs.find((f) => f.endsWith('.mp4')) ? (

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ChatMessage, ChatSpec } from '@shared/formats/chat'
 import ChatScreen from '../chat/ChatScreen'
+import ConversationEditor from '../studio/ConversationEditor'
 import Scaled from '../studio/Scaled'
 import Toast, { useToast } from '../studio/Toast'
 import { api, type AssetItem } from '../../lib/api'
@@ -47,9 +48,6 @@ export default function ChatScreenshotTool() {
     lastMessageStatus: 'none',
     messages: messages.length ? messages : STARTER,
   }
-
-  const setMessage = (index: number, patch: Partial<ChatMessage>) =>
-    setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, ...patch } : m)))
 
   const generate = async () => {
     setBusy(true)
@@ -167,46 +165,9 @@ export default function ChatScreenshotTool() {
         )}
 
         <div className="mb-4 text-sm text-neutral-400">Messages</div>
-        <div className="mb-4 flex flex-col gap-2">
-          {messages.map((message, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <button
-                onClick={() => setMessage(i, { from: message.from === 'me' ? 'them' : 'me' })}
-                title="Switch sender"
-                className={`w-16 shrink-0 rounded-lg border px-2 py-2 text-xs font-medium ${
-                  message.from === 'me'
-                    ? 'border-wing-500 bg-wing-950/40'
-                    : 'border-neutral-800 bg-neutral-900'
-                }`}
-              >
-                {message.from === 'me' ? 'You' : 'Her'}
-              </button>
-              <input
-                value={message.text}
-                onChange={(e) => setMessage(i, { text: e.target.value })}
-                className="min-w-0 flex-1 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2"
-              />
-              <button
-                onClick={() => setMessages((prev) => prev.filter((_, index) => index !== i))}
-                disabled={messages.length <= 1}
-                className="shrink-0 rounded-lg border border-neutral-800 px-2 py-2 text-neutral-500 hover:text-white disabled:opacity-30"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+        <div className="mb-6">
+          <ConversationEditor messages={messages} onChange={setMessages} />
         </div>
-        <button
-          onClick={() =>
-            setMessages((prev) => [
-              ...prev,
-              { from: prev[prev.length - 1]?.from === 'me' ? 'them' : 'me', text: '' },
-            ])
-          }
-          className="mb-6 rounded-lg border border-neutral-700 px-3 py-1.5 text-sm hover:border-neutral-500"
-        >
-          + Add message
-        </button>
 
         {error && <div className="mb-4 rounded-lg bg-red-950 p-3 text-sm text-red-300">{error}</div>}
         <div>

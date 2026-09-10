@@ -6,6 +6,8 @@ import { buildClipTimeline, buildCutsTimeline } from '@shared/timeline'
 import type { ClipSpec } from '@shared/formats/clip'
 import { carouselSlideCount, type CarouselSpec } from '@shared/formats/carousel'
 import DraftPreview from '../components/studio/DraftPreview'
+import Storyboard from '../components/studio/Storyboard'
+import ConversationEditor from '../components/studio/ConversationEditor'
 import { api } from '../lib/api'
 
 export default function DraftEditor() {
@@ -148,8 +150,30 @@ export default function DraftEditor() {
           </div>
         </div>
 
+        {draft.format === 'clip' && Boolean(parsed.spec) && (
+          <div className="mb-5">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+              {(parsed.spec as ClipSpec).structure === 'cuts' ? 'Storyboard' : 'Conversation'}
+            </div>
+            {(parsed.spec as ClipSpec).structure === 'cuts' ? (
+              <Storyboard
+                spec={parsed.spec as ClipSpec}
+                onChange={(next) => setSpecText(JSON.stringify(next, null, 2))}
+              />
+            ) : (
+              <ConversationEditor
+                messages={(parsed.spec as ClipSpec).chat.messages}
+                onChange={(messages) => {
+                  const spec = parsed.spec as ClipSpec
+                  setSpecText(JSON.stringify({ ...spec, chat: { ...spec.chat, messages } }, null, 2))
+                }}
+              />
+            )}
+          </div>
+        )}
+
         <label className="text-sm">
-          Spec (JSON — the preview updates live)
+          <span className="text-neutral-500">Advanced — raw spec (the preview updates live)</span>
           <textarea
             value={specText}
             onChange={(e) => setSpecText(e.target.value)}
