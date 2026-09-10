@@ -1,7 +1,7 @@
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Generate from './pages/Generate'
-import BatchReview from './pages/BatchReview'
+import Drafts from './pages/Drafts'
 import DraftEditor from './pages/DraftEditor'
 import RenderQueue from './pages/RenderQueue'
 import Library from './pages/Library'
@@ -68,8 +68,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/generate" element={<Generate />} />
-          <Route path="/drafts" element={<BatchReview />} />
-          <Route path="/batches/:batchId" element={<BatchReview />} />
+          <Route path="/drafts" element={<Drafts />} />
+          <Route path="/batches/:batchId" element={<Drafts />} />
           <Route path="/drafts/:id" element={<DraftEditor />} />
           <Route path="/queue" element={<RenderQueue />} />
           <Route path="/library" element={<Library />} />

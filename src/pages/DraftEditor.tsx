@@ -161,8 +161,12 @@ export default function DraftEditor() {
           <div className="mt-2 rounded-lg bg-red-950 p-2 text-xs text-red-300">{parsed.error}</div>
         )}
 
-        <div className="mt-4 flex items-center gap-3">
-          <button onClick={save} className="rounded-lg bg-emerald-700 px-4 py-2 hover:bg-emerald-600">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            onClick={save}
+            disabled={Boolean(parsed.error)}
+            className="rounded-lg bg-emerald-700 px-4 py-2 hover:bg-emerald-600 disabled:opacity-50"
+          >
             Save
           </button>
           <button
@@ -171,6 +175,13 @@ export default function DraftEditor() {
             className="rounded-lg bg-wing-500 px-4 py-2 hover:bg-wing-400 disabled:opacity-50"
           >
             Save & render
+          </button>
+          <button
+            onClick={() => navigate(-1)}
+            title="Discard changes and go back"
+            className="rounded-lg border border-neutral-700 px-4 py-2 text-neutral-300 hover:border-neutral-500 hover:text-white"
+          >
+            Cancel
           </button>
           {status && <span className="text-sm text-neutral-400">{status}</span>}
         </div>

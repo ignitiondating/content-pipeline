@@ -31,8 +31,8 @@ const STRUCTURES = [
 
 const CAROUSEL_STYLES = [
   { key: 'auto', label: 'Auto', hint: 'Claude mixes both styles' },
-  { key: 'screenshot', label: 'Screenshot', hint: 'full-app iMessage screens' },
-  { key: 'zoom', label: 'Zoom DM', hint: 'one huge message per slide' },
+  { key: 'screenshot', label: 'Full phone screens', hint: 'looks like a real screenshot' },
+  { key: 'zoom', label: 'Zoomed messages', hint: 'one big message per slide' },
 ] as const
 
 const SKIN_OPTIONS = [
@@ -390,24 +390,37 @@ export default function Generate() {
             <button
               key={card.key}
               onClick={() => setFormat(card.key)}
-              className={`rounded-xl border p-4 text-left ${
-                format === card.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800 hover:border-neutral-600'
+              className={`rounded-xl border-2 p-4 text-left ${
+                format === card.key
+                  ? 'border-wing-500 bg-wing-950/40'
+                  : 'border-neutral-800 hover:border-neutral-600'
               }`}
             >
-              <div className="font-semibold">{card.title}</div>
+              <div className="flex items-center gap-2 font-semibold">
+                <span
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] ${
+                    format === card.key ? 'bg-wing-500 text-white' : 'border border-neutral-600'
+                  }`}
+                >
+                  {format === card.key ? '✓' : ''}
+                </span>
+                {card.title}
+              </div>
               <div className="mt-1 text-xs text-neutral-400">{card.blurb}</div>
             </button>
           ))}
         </div>
 
         {format === 'carousel' && (
+          <>
+          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-neutral-500">Slide style</div>
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {CAROUSEL_STYLES.map((s) => (
               <button
                 key={s.key}
                 onClick={() => setCarouselStyle(s.key)}
                 className={`rounded-lg border px-3 py-2 text-left text-sm ${
-                  carouselStyle === s.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
+                  carouselStyle === s.key ? 'border-neutral-500 bg-neutral-800' : 'border-neutral-900 bg-neutral-950'
                 }`}
               >
                 <span className="block font-medium">{s.label}</span>
@@ -415,33 +428,38 @@ export default function Generate() {
               </button>
             ))}
           </div>
+          </>
         )}
 
         {format === 'slideshow' && (
+          <>
+          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-neutral-500">Slideshow style</div>
           <div className="mb-4 grid grid-cols-3 gap-3">
             {STYLES.map((s) => (
               <button
                 key={s.key}
                 onClick={() => setStyle(s.key)}
                 className={`rounded-lg border px-3 py-2 text-sm ${
-                  style === s.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
+                  style === s.key ? 'border-neutral-500 bg-neutral-800' : 'border-neutral-900 bg-neutral-950'
                 }`}
               >
                 {s.label}
               </button>
             ))}
           </div>
+          </>
         )}
 
         {format === 'clip' && (
           <>
+            <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-neutral-500">Edit style</div>
             <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
               {STRUCTURES.map((s) => (
                 <button
                   key={s.key}
                   onClick={() => setStructure(s.key)}
                   className={`rounded-lg border px-3 py-2 text-left text-sm ${
-                    structure === s.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
+                    structure === s.key ? 'border-neutral-500 bg-neutral-800' : 'border-neutral-900 bg-neutral-950'
                   }`}
                 >
                   <span className="block font-medium">{s.label}</span>
@@ -449,16 +467,17 @@ export default function Generate() {
                 </button>
               ))}
             </div>
+            <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-neutral-500">Background footage</div>
             <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               {BROLL_OPTIONS.map((b) => (
                 <button
                   key={b.key}
                   onClick={() => setBrollTag(b.key)}
                   className={`rounded-lg border px-3 py-2 text-left text-sm ${
-                    brollTag === b.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
+                    brollTag === b.key ? 'border-neutral-500 bg-neutral-800' : 'border-neutral-900 bg-neutral-950'
                   }`}
                 >
-                  <span className="block font-medium">B-roll: {b.label}</span>
+                  <span className="block font-medium">{b.label}</span>
                   <span className="mt-0.5 block text-xs text-neutral-500">{b.hint}</span>
                 </button>
               ))}
@@ -467,20 +486,23 @@ export default function Generate() {
         )}
 
         {(format === 'clip' || (format === 'carousel' && carouselStyle === 'zoom')) && (
+          <>
+          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-neutral-500">Chat app look</div>
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {SKIN_OPTIONS.map((s) => (
               <button
                 key={s.key}
                 onClick={() => setSkin(s.key)}
                 className={`rounded-lg border px-3 py-2 text-left text-sm ${
-                  skin === s.key ? 'border-wing-500 bg-wing-950/40' : 'border-neutral-800'
+                  skin === s.key ? 'border-neutral-500 bg-neutral-800' : 'border-neutral-900 bg-neutral-950'
                 }`}
               >
-                <span className="block font-medium">Skin: {s.label}</span>
+                <span className="block font-medium">{s.label}</span>
                 <span className="mt-0.5 block text-xs text-neutral-500">{s.hint}</span>
               </button>
             ))}
           </div>
+          </>
         )}
 
         <label className="mb-4 flex items-center gap-2 text-sm">

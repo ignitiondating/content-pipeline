@@ -17,7 +17,7 @@ const STATUS_CHIP: Record<string, string> = {
   posted: 'bg-neutral-800 text-neutral-400',
 }
 
-export default function BatchReview() {
+export default function Drafts() {
   const { batchId } = useParams()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -55,7 +55,7 @@ export default function BatchReview() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">{batchId ? 'Batch review' : 'Drafts'}</h1>
+      <h1 className="mb-4 text-2xl font-bold">Drafts</h1>
       {!batchId && (
         <div className="mb-6 flex flex-wrap gap-2">
           {STATUS_TABS.map((tab) => (

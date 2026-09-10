@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import Toast, { useToast } from '../components/studio/Toast'
 import { api, type ExportItem } from '../lib/api'
 
 function fileUrl(item: ExportItem, file: string): string {
@@ -8,17 +9,31 @@ function fileUrl(item: ExportItem, file: string): string {
 export default function Library() {
   const [items, setItems] = useState<ExportItem[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState<string | null>(null)
+  const [captions, setCaptions] = useState<Record<string, string>>({})
+  const [toast, showToast] = useToast()
 
   const load = useCallback(() => {
-    api.exports().then((r) => setItems(r.exports)).catch((e: Error) => setError(e.message))
+    api
+      .exports()
+      .then((r) => {
+        setItems(r.exports)
+        // Preloaded so the copy button writes to the clipboard instantly —
+        // fetching on click made it feel like nothing happened.
+        for (const item of r.exports) {
+          fetch(fileUrl(item, 'caption.txt'))
+            .then((res) => res.text())
+            .then((text) => setCaptions((prev) => ({ ...prev, [item.id]: text })))
+            .catch(() => {})
+        }
+      })
+      .catch((e: Error) => setError(e.message))
   }, [])
   useEffect(load, [load])
 
-  const copy = async (key: string, text: string) => {
+  const copy = async (item: ExportItem) => {
+    const text = captions[item.id] ?? (await fetch(fileUrl(item, 'caption.txt')).then((r) => r.text()))
     await navigator.clipboard.writeText(text)
-    setCopied(key)
-    setTimeout(() => setCopied(null), 1200)
+    showToast('Caption copied to clipboard')
   }
 
   return (
@@ -63,13 +78,10 @@ export default function Library() {
                   </a>
                 ))}
                 <button
-                  onClick={async () => {
-                    const text = await fetch(fileUrl(item, 'caption.txt')).then((r) => r.text())
-                    await copy(item.id, text)
-                  }}
+                  onClick={() => copy(item)}
                   className="rounded-lg border border-neutral-700 px-2 py-1 hover:border-neutral-500"
                 >
-                  {copied === item.id ? 'Copied ✓' : 'Copy caption.txt'}
+                  Copy caption
                 </button>
               </div>
               {item.status !== 'posted' && (
@@ -84,6 +96,7 @@ export default function Library() {
           )
         })}
       </div>
+      <Toast message={toast} />
     </div>
   )
 }
