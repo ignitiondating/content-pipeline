@@ -3,7 +3,12 @@ import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type { Draft } from '../../shared/formats/draft'
 import { CLIP_LIMITS, type ClipSpec } from '../../shared/formats/clip'
-import { buildClipTimeline, buildCutsTimeline, promoContentFor } from '../../shared/timeline'
+import {
+  buildClipTimeline,
+  buildCutsTimeline,
+  promoContentFor,
+  resolveBrollForBursts,
+} from '../../shared/timeline'
 import { dropPromoShotSpec, stashPromoShotSpec } from './promoShot'
 import { assetsInPathOrder, listAssets, markAssetUsed, pickAsset, type Asset } from '../assets/catalog'
 import { captureSequence, type CaptureRequest } from '../capture/screenshot'
@@ -42,13 +47,15 @@ export async function renderClip(
       : []
     const ordered = chosen.length ? chosen : assetsInPathOrder('broll', spec.brollTag)
     if (ordered.length === 0) throw noBroll()
-    const n = ordered.length
     // The outro closes on the last file; a file only repeats when the clip
     // has more bursts than there are clips to spend.
-    const brolls = Array.from({ length: burstCount }, (_, k) => {
-      if (burstCount > 1 && k === burstCount - 1) return ordered[n - 1]
-      return ordered[k % n]
-    })
+    // Same resolver the storyboard previews with, so what you saw renders.
+    const live = listAssets()
+    const brolls = resolveBrollForBursts(
+      burstCount,
+      ordered.map((a) => a.path),
+      spec.brollSlots,
+    ).map((p) => live.find((a) => a.path === p && !a.missing) ?? ordered[0])
     for (const id of new Set(brolls.map((b) => b.id))) markAssetUsed(id)
     await renderCuts(draft, spec, brolls, music, workdir, setProgress)
   } else {

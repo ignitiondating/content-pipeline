@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ChatSpec } from '@shared/formats/chat'
 import type { ClipSpec } from '@shared/formats/clip'
-import { buildCutsTimeline, promoContentFor, type CutSegment } from '@shared/timeline'
+import {
+  buildCutsTimeline,
+  burstOrdinalAt,
+  promoContentFor,
+  resolveBrollForBursts,
+  type CutSegment,
+} from '@shared/timeline'
 import ClipPlayer, { ClipFrame } from './ClipPlayer'
 import ConversationEditor from './ConversationEditor'
 import AssetPicker from './AssetPicker'
@@ -19,8 +25,7 @@ function timingKeyFor(
   if (segment.type === 'chat') return { field: 'chatHoldsS', key: String(segment.visibleCount) }
   if (index === 0) return { field: 'introS' }
   if (index === segments.length - 1) return { field: 'outroS' }
-  const ordinal = segments.slice(0, index).filter((s, i) => s.type === 'broll' && i > 0).length
-  return { field: 'brollBeatsS', key: String(ordinal) }
+  return { field: 'brollBeatsS', key: String(burstOrdinalAt(segments, index) - 1) }
 }
 
 /**
@@ -56,7 +61,7 @@ export default function Storyboard({
       .map((a) => a.path)
       .sort()
   }, [spec.brollPaths, spec.brollTag, assets])
-  const brollUrls = brollPaths.map((p) => `/files/${p}`)
+
   const storyUrl = spec.storyImagePath ? `/files/${spec.storyImagePath}` : undefined
 
   const setChat = (chat: ChatSpec) => onChange({ ...spec, chat })
@@ -83,8 +88,28 @@ export default function Storyboard({
     return key ? Boolean((value as Record<string, number> | undefined)?.[key]) : value !== undefined
   }
 
-  const burstOrdinalOf = (segIndex: number): number =>
-    timeline.segments.slice(0, segIndex).filter((s, i) => s.type === 'broll' && i > 0).length
+  // Which clip each burst will actually play — the renderer's own resolver.
+  const burstPaths = useMemo(
+    () =>
+      resolveBrollForBursts(
+        timeline.segments.filter((s) => s.type === 'broll').length,
+        brollPaths,
+        spec.brollSlots,
+      ),
+    [timeline, brollPaths, spec.brollSlots],
+  )
+  const pathForSegment = (segIndex: number): string | undefined => {
+    const ordinal = burstOrdinalAt(timeline.segments, segIndex)
+    return ordinal >= 0 ? burstPaths[ordinal] : undefined
+  }
+  const setSlot = (segIndex: number, assetPath: string | null) => {
+    const ordinal = burstOrdinalAt(timeline.segments, segIndex)
+    if (ordinal < 0) return
+    const slots = { ...(spec.brollSlots ?? {}) }
+    if (assetPath === null) delete slots[String(ordinal)]
+    else slots[String(ordinal)] = assetPath
+    onChange({ ...spec, brollSlots: Object.keys(slots).length ? slots : undefined })
+  }
 
   const label = (s: CutSegment, i: number) =>
     s.type === 'chat'
@@ -95,7 +120,7 @@ export default function Storyboard({
           ? 'Intro clip'
           : i === timeline.segments.length - 1
             ? 'Closing clip'
-            : `Clip ${burstOrdinalOf(i) + 1}`
+            : `Clip ${burstOrdinalAt(timeline.segments, i)}`
 
   const offTarget = Math.abs(timeline.durationS - 33) > 0.6
 
@@ -107,7 +132,7 @@ export default function Storyboard({
             chat={spec.chat}
             timing={spec.timing}
             hook={spec.hook}
-            brollUrls={brollUrls}
+            burstUrls={burstPaths.map((p) => (p ? `/files/${p}` : ''))}
             storyUrl={storyUrl}
             height={440}
             playing={playing}
@@ -151,15 +176,7 @@ export default function Storyboard({
                   segment={s}
                   chat={spec.chat}
                   hook={spec.hook}
-                  brollUrl={
-                    s.type === 'broll'
-                      ? brollUrls[
-                          (i === timeline.segments.length - 1 && brollUrls.length
-                            ? brollUrls.length - 1
-                            : burstOrdinalOf(i)) % Math.max(brollUrls.length, 1)
-                        ]
-                      : undefined
-                  }
+                  brollUrl={pathForSegment(i) ? `/files/${pathForSegment(i)}` : undefined}
                   storyUrl={storyUrl}
                   isIntro={i === 0}
                 />
@@ -205,15 +222,57 @@ export default function Storyboard({
             {segment.type === 'broll' && (
               <div className="mb-4">
                 <p className="mb-2 text-xs text-neutral-400">
-                  Pick the clips for this video below — they play in the order you choose.
+                  Tap a clip to play it here. Only this beat changes — the rest of the edit stays.
                 </p>
-                <AssetPicker
-                  tag={spec.brollTag}
-                  selected={spec.brollPaths ?? []}
-                  onChange={(paths) => onChange({ ...spec, brollPaths: paths.length ? paths : undefined })}
-                  storyPath={spec.storyImagePath}
-                  onStoryChange={(path) => onChange({ ...spec, storyImagePath: path })}
-                />
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {assets
+                    .filter((a) => a.kind === 'broll' && a.tag === spec.brollTag)
+                    .map((asset) => {
+                      const active = pathForSegment(selected) === asset.path
+                      return (
+                        <button
+                          key={asset.id}
+                          onClick={() => setSlot(selected, asset.path)}
+                          title={asset.path.split('/').pop()}
+                          className={`overflow-hidden rounded-lg border-2 ${
+                            active ? 'border-wing-500' : 'border-neutral-800'
+                          }`}
+                        >
+                          <video
+                            src={`/files/${asset.path}#t=0.1`}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="h-24 w-16 object-cover"
+                          />
+                        </button>
+                      )
+                    })}
+                </div>
+                {spec.brollSlots?.[String(burstOrdinalAt(timeline.segments, selected))] && (
+                  <button
+                    onClick={() => setSlot(selected, null)}
+                    className="mb-3 rounded-lg border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-500"
+                  >
+                    Back to automatic clip
+                  </button>
+                )}
+                <details>
+                  <summary className="cursor-pointer text-xs text-neutral-500">
+                    Set the clips and story photo for the whole video
+                  </summary>
+                  <div className="mt-3">
+                    <AssetPicker
+                      tag={spec.brollTag}
+                      selected={spec.brollPaths ?? []}
+                      onChange={(paths) =>
+                        onChange({ ...spec, brollPaths: paths.length ? paths : undefined })
+                      }
+                      storyPath={spec.storyImagePath}
+                      onStoryChange={(path) => onChange({ ...spec, storyImagePath: path })}
+                    />
+                  </div>
+                </details>
               </div>
             )}
 

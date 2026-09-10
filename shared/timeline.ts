@@ -82,6 +82,33 @@ export interface CutsTimeline {
   durationS: number
 }
 
+/**
+ * Which clip plays on each b-roll beat, shared by the renderer and every
+ * preview so the storyboard shows exactly what will be rendered: a slot
+ * replacement wins, then the ordered list (last one closes the video),
+ * wrapping when there are more bursts than clips.
+ */
+export function resolveBrollForBursts(
+  burstCount: number,
+  ordered: string[],
+  slots?: Record<string, string>,
+): string[] {
+  const n = ordered.length
+  return Array.from({ length: burstCount }, (_, k) => {
+    const pinned = slots?.[String(k)]
+    if (pinned) return pinned
+    if (n === 0) return ''
+    if (burstCount > 1 && k === burstCount - 1) return ordered[n - 1]
+    return ordered[k % n]
+  })
+}
+
+/** Burst ordinal of a b-roll segment (0 = intro), or -1 for other types. */
+export function burstOrdinalAt(segments: CutSegment[], index: number): number {
+  if (segments[index]?.type !== 'broll') return -1
+  return segments.slice(0, index).filter((s) => s.type === 'broll').length
+}
+
 /** Per-beat duration overrides from the storyboard editor (see ClipSpec). */
 export interface ClipTiming {
   /** Keyed by visibleCount (message number), so text edits don't shift them. */

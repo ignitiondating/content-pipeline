@@ -28,6 +28,12 @@ export const ClipSpecSchema = z.object({
    * tag's files by filename (nba-01, nba-02, …), which stays the default.
    */
   brollPaths: z.array(z.string().max(300)).max(20).optional(),
+  /**
+   * Per-slot replacements: burst ordinal → clip path. Wins over brollPaths
+   * and the filename order for that one beat, so swapping the intro clip
+   * doesn't reshuffle the rest of the edit.
+   */
+  brollSlots: z.record(z.string(), z.string().max(300)).optional(),
   /** Exact photo for the story-reply opener; otherwise rotation picks one. */
   storyImagePath: z.string().max(300).optional(),
   /**

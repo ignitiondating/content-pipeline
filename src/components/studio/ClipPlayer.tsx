@@ -1,6 +1,12 @@
 import { useEffect, useMemo } from 'react'
 import { CHAT_CANVAS, type ChatSpec } from '@shared/formats/chat'
-import { buildCutsTimeline, promoContentFor, type ClipTiming, type CutSegment } from '@shared/timeline'
+import {
+  buildCutsTimeline,
+  burstOrdinalAt,
+  promoContentFor,
+  type ClipTiming,
+  type CutSegment,
+} from '@shared/timeline'
 import ChatScreen from '../chat/ChatScreen'
 import WingPromoShot from '../promo/WingPromoShot'
 import BrollPlaceholder from './BrollPlaceholder'
@@ -103,7 +109,7 @@ export default function ClipPlayer({
   chat,
   timing,
   hook,
-  brollUrls = [],
+  burstUrls = [],
   storyUrl,
   height = 460,
   playing = true,
@@ -113,7 +119,8 @@ export default function ClipPlayer({
   chat: ChatSpec
   timing?: ClipTiming
   hook?: string
-  brollUrls?: string[]
+  /** One URL per b-roll beat, already resolved (slots included). */
+  burstUrls?: string[]
   storyUrl?: string
   height?: number
   playing?: boolean
@@ -130,13 +137,13 @@ export default function ClipPlayer({
     if (activeIndex === undefined) onIndexChange?.(looped)
   }, [looped, activeIndex, onIndexChange])
 
-  // Bursts consume the picked clips in order, like the renderer does.
-  const brollForIndex = useMemo(() => {
-    let burst = 0
-    return timeline.segments.map((s) =>
-      s.type === 'broll' && brollUrls.length ? brollUrls[burst++ % brollUrls.length] : undefined,
-    )
-  }, [timeline, brollUrls])
+  const brollForIndex = useMemo(
+    () =>
+      timeline.segments.map((s, i) =>
+        s.type === 'broll' ? burstUrls[burstOrdinalAt(timeline.segments, i)] : undefined,
+      ),
+    [timeline, burstUrls],
+  )
 
   if (!segment) return null
   return (
