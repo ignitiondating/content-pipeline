@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import Toast, { useToast } from '../components/studio/Toast'
 import { api, type ExportItem } from '../lib/api'
 
@@ -38,7 +39,15 @@ export default function Library() {
 
   return (
     <div>
-      <h1 className="mb-2 text-2xl font-bold">Library</h1>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Library</h1>
+        <Link
+          to="/queue"
+          className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm hover:border-neutral-500"
+        >
+          Render queue
+        </Link>
+      </div>
       <p className="mb-6 text-sm text-amber-400">
         Manual upload — no auto-posting in v1. Download, then copy the caption fields into TikTok / IG.
       </p>

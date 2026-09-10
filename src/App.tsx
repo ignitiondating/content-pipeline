@@ -1,28 +1,26 @@
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import Dashboard from './pages/Dashboard'
+import Create from './pages/Create'
 import Generate from './pages/Generate'
 import Drafts from './pages/Drafts'
 import DraftEditor from './pages/DraftEditor'
 import RenderQueue from './pages/RenderQueue'
 import Library from './pages/Library'
 import Assets from './pages/Assets'
+import Tools from './pages/Tools'
 import Settings from './pages/Settings'
-import PipelineSteps from './components/studio/PipelineSteps'
 import RenderChat from './renderRoutes/RenderChat'
 import RenderSlide from './renderRoutes/RenderSlide'
 import RenderOverlay from './renderRoutes/RenderOverlay'
 import RenderPromoShot from './renderRoutes/RenderPromoShot'
-import PromoShots from './pages/PromoShots'
+import RenderChatShot from './renderRoutes/RenderChatShot'
 
+// One entry per thing you might want to do, in the order you'd do it.
 const NAV = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/generate', label: 'Generate' },
+  { to: '/', label: 'Create' },
   { to: '/drafts', label: 'Drafts' },
-  { to: '/queue', label: 'Render queue' },
   { to: '/library', label: 'Library' },
+  { to: '/tools', label: 'Tools' },
   { to: '/assets', label: 'Assets' },
-  { to: '/promo-shots', label: 'Promo shots' },
-  { to: '/settings', label: 'Settings' },
 ]
 
 export default function App() {
@@ -35,6 +33,7 @@ export default function App() {
         <Route path="/render/slide" element={<RenderSlide />} />
         <Route path="/render/overlay" element={<RenderOverlay />} />
         <Route path="/render/promoshot" element={<RenderPromoShot />} />
+        <Route path="/render/chatshot" element={<RenderChatShot />} />
       </Routes>
     )
   }
@@ -42,7 +41,7 @@ export default function App() {
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
       {/* Sidebar on desktop, sticky top bar with scrollable nav on phones. */}
-      <aside className="sticky top-0 z-20 shrink-0 border-b border-neutral-800 bg-neutral-950 p-3 lg:static lg:w-52 lg:border-b-0 lg:border-r lg:p-4">
+      <aside className="sticky top-0 z-20 flex shrink-0 flex-col border-b border-neutral-800 bg-neutral-950 p-3 lg:static lg:w-52 lg:border-b-0 lg:border-r lg:p-4">
         <div className="mb-2 text-lg font-bold lg:mb-6">
           Wing<span className="text-wing-400">AI</span> pipeline
         </div>
@@ -61,21 +60,31 @@ export default function App() {
               {item.label}
             </NavLink>
           ))}
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `whitespace-nowrap rounded-lg px-3 py-2 text-sm lg:mt-auto ${
+                isActive ? 'bg-neutral-800 text-white' : 'text-neutral-500 hover:text-white'
+              }`
+            }
+          >
+            Settings
+          </NavLink>
         </nav>
       </aside>
       <main className="min-w-0 flex-1 overflow-x-hidden p-4 md:p-6">
-        <PipelineSteps />
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/generate" element={<Generate />} />
+          <Route path="/" element={<Create />} />
           <Route path="/drafts" element={<Drafts />} />
           <Route path="/batches/:batchId" element={<Drafts />} />
           <Route path="/drafts/:id" element={<DraftEditor />} />
-          <Route path="/queue" element={<RenderQueue />} />
           <Route path="/library" element={<Library />} />
+          <Route path="/tools" element={<Tools />} />
           <Route path="/assets" element={<Assets />} />
-          <Route path="/promo-shots" element={<PromoShots />} />
           <Route path="/settings" element={<Settings />} />
+          {/* Advanced/secondary: reachable by link, not in the nav. */}
+          <Route path="/generate" element={<Generate />} />
+          <Route path="/queue" element={<RenderQueue />} />
         </Routes>
       </main>
     </div>

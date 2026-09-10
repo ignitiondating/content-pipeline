@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import WingPromoShot from '../components/promo/WingPromoShot'
-import Scaled from '../components/studio/Scaled'
-import { api, type AssetItem } from '../lib/api'
+import WingPromoShot from '../promo/WingPromoShot'
+import Scaled from '../studio/Scaled'
+import { api, type AssetItem } from '../../lib/api'
 
 const DEFAULTS = {
   bubbleMe: 'is your dad a pirate?',
@@ -9,7 +9,7 @@ const DEFAULTS = {
   suggestion: "Because you're a treasure.",
 }
 
-export default function PromoShots() {
+export default function AppScreenshotTool() {
   const [backgrounds, setBackgrounds] = useState<AssetItem[]>([])
   const [shots, setShots] = useState<AssetItem[]>([])
   const [imagePath, setImagePath] = useState<string | undefined>(undefined)
@@ -65,7 +65,6 @@ export default function PromoShots() {
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
       <div>
-        <h1 className="mb-2 text-2xl font-bold">Promo shots</h1>
         <p className="mb-6 max-w-xl text-sm text-neutral-400">
           WingAI-branded screenshots: the imported conversation plus the suggested reply. Note:
           cuts clips now auto-generate a matching shot from their own conversation at render time —

@@ -55,7 +55,30 @@ export default function Drafts() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold">Drafts</h1>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Drafts</h1>
+        <div className="flex gap-2 text-sm">
+          <Link
+            to="/generate"
+            className="rounded-lg border border-neutral-700 px-3 py-1.5 hover:border-neutral-500"
+          >
+            Batch generate
+          </Link>
+          <Link
+            to="/queue"
+            className="rounded-lg border border-neutral-700 px-3 py-1.5 hover:border-neutral-500"
+          >
+            Render queue
+          </Link>
+        </div>
+      </div>
+      <p className="mb-4 text-sm text-neutral-500">
+        Everything Claude has written. For a single piece start to finish, use{' '}
+        <Link to="/" className="text-wing-400 hover:underline">
+          Create
+        </Link>
+        .
+      </p>
       {!batchId && (
         <div className="mb-6 flex flex-wrap gap-2">
           {STATUS_TABS.map((tab) => (

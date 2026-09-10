@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { getDb, newId, now } from '../db/index'
-import { BACKGROUNDS_DIR, BROLL_DIR, FILES_ROOT, MUSIC_DIR, PROMO_DIR } from '../paths'
+import { BACKGROUNDS_DIR, BROLL_DIR, FILES_ROOT, MUSIC_DIR, PROMO_DIR, SHOTS_DIR } from '../paths'
 import { probeMedia } from '../render/ffmpeg'
 
-export type AssetKind = 'broll' | 'background' | 'music' | 'promo'
+export type AssetKind = 'broll' | 'background' | 'music' | 'promo' | 'shot'
 
 export interface Asset {
   id: string
@@ -76,6 +76,8 @@ export async function rescanAssets(): Promise<{ added: number; missing: number; 
     { dir: MUSIC_DIR, kind: 'music', exts: AUDIO_EXT },
     // Real WingAI app screenshots for the promo beat of cuts clips.
     { dir: PROMO_DIR, kind: 'promo', exts: IMAGE_EXT },
+    // Standalone chat screenshots made in Tools.
+    { dir: SHOTS_DIR, kind: 'shot', exts: IMAGE_EXT },
   ]
 
   for (const { dir, kind, exts } of sources) {

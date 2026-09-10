@@ -1,6 +1,7 @@
 import type { Draft } from '@shared/formats/draft'
 import type { TimelineState } from '@shared/timeline'
 import type { Examples } from '@shared/examples'
+import type { ChatSpec } from '@shared/formats/chat'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -96,6 +97,15 @@ export const api = {
   },
   createPromoShot: (body: { imagePath?: string; bubbleMe: string; bubbleThem: string; suggestion: string }) =>
     request<{ asset: AssetItem }>('/api/promo-shots', { method: 'POST', body: JSON.stringify(body) }),
+  createChatShot: (body: {
+    chat: unknown
+    mode: 'full' | 'zoom'
+    storyImagePath?: string
+  }) => request<{ asset: AssetItem }>('/api/chat-shots', { method: 'POST', body: JSON.stringify(body) }),
+  chatShot: (id: string) =>
+    request<{
+      spec: { chat: ChatSpec; mode: 'full' | 'zoom'; storyImagePath?: string }
+    }>(`/api/chat-shots/${id}`),
   promoShot: (id: string) =>
     request<{ spec: { imagePath?: string; bubbleMe: string; bubbleThem: string; suggestion: string } }>(
       `/api/promo-shots/${id}`,

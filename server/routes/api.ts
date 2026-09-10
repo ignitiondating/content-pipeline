@@ -5,6 +5,7 @@ import path from 'node:path'
 import { getDb } from '../db/index'
 import { BACKGROUNDS_DIR, BROLL_DIR, FILES_ROOT, MUSIC_DIR } from '../paths'
 import { createPromoShot, getPromoShotSpec, PromoShotSpecSchema } from '../render/promoShot'
+import { ChatShotSpecSchema, createChatShot, getChatShotSpec } from '../render/chatShot'
 import { FORMATS, DRAFT_STATUSES } from '../../shared/formats/draft'
 import { SLIDESHOW_STYLES } from '../../shared/formats/slideshow'
 import { buildClipTimeline } from '../../shared/timeline'
@@ -204,6 +205,20 @@ api.post('/promo-shots', async (c) => {
   } catch (error) {
     return c.json({ error: asError(error) }, 400)
   }
+})
+
+api.post('/chat-shots', async (c) => {
+  try {
+    const spec = ChatShotSpecSchema.parse(await c.req.json())
+    return c.json({ asset: await createChatShot(spec) })
+  } catch (error) {
+    return c.json({ error: asError(error) }, 400)
+  }
+})
+
+api.get('/chat-shots/:id', (c) => {
+  const spec = getChatShotSpec(c.req.param('id'))
+  return spec ? c.json({ spec }) : c.json({ error: 'not found or expired' }, 404)
 })
 
 api.get('/promo-shots/:id', (c) => {

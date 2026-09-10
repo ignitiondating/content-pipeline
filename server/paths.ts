@@ -19,6 +19,8 @@ export const BROLL_DIR = path.join(LIBRARY_DIR, 'broll')
 export const BACKGROUNDS_DIR = path.join(LIBRARY_DIR, 'backgrounds')
 export const MUSIC_DIR = path.join(LIBRARY_DIR, 'music')
 export const PROMO_DIR = path.join(LIBRARY_DIR, 'promo')
+/** Standalone chat screenshots made in Tools (deliverables, not pipeline assets). */
+export const SHOTS_DIR = path.join(LIBRARY_DIR, 'shots')
 
 export const OUT_DIR = path.join(STATE_ROOT, 'out')
 export const RENDER_DIR = path.join(OUT_DIR, 'render')
