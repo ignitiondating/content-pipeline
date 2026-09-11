@@ -41,6 +41,28 @@ export const ClipSpecSchema = z.object({
    * edits: chat holds by visibleCount, b-roll beats by burst ordinal.
    * Anything absent is computed by the solver as usual.
    */
+  /**
+   * The edit, frozen. Absent means the structure is derived from the chat
+   * (the default); present means the operator moved, trimmed or inserted
+   * something and this list is now the truth.
+   */
+  segments: z
+    .array(
+      z.discriminatedUnion('type', [
+        z.object({ type: z.literal('chat'), visibleCount: z.number().int().min(1), durS: z.number().min(0.2).max(20) }),
+        z.object({ type: z.literal('promo'), durS: z.number().min(0.2).max(20) }),
+        z.object({
+          type: z.literal('broll'),
+          path: z.string().max(300),
+          durS: z.number().min(0.2).max(20),
+          trimStartS: z.number().min(0).optional(),
+          trimEndS: z.number().min(0).optional(),
+        }),
+        z.object({ type: z.literal('image'), path: z.string().max(300), durS: z.number().min(0.2).max(20) }),
+      ]),
+    )
+    .max(60)
+    .optional(),
   timing: z
     .object({
       chatHoldsS: z.record(z.string(), z.number().min(0.4).max(15)).optional(),

@@ -110,6 +110,10 @@ export const api = {
     request<{ spec: { imagePath?: string; bubbleMe: string; bubbleThem: string; suggestion: string } }>(
       `/api/promo-shots/${id}`,
     ),
+  filmstrip: (assetPath: string) =>
+    request<{ url: string; frames: number; durationS: number }>(
+      `/api/assets/filmstrip?path=${encodeURIComponent(assetPath)}`,
+    ),
   rescanAssets: () =>
     request<{ added: number; missing: number; total: number }>('/api/assets/rescan', { method: 'POST' }),
   counts: () => request<{ drafts: Record<string, number>; activeJobs: number }>('/api/counts'),

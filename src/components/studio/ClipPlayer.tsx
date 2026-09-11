@@ -1,22 +1,18 @@
 import { useEffect, useMemo } from 'react'
 import { CHAT_CANVAS, type ChatSpec } from '@shared/formats/chat'
-import {
-  buildCutsTimeline,
-  burstOrdinalAt,
-  promoContentFor,
-  type ClipTiming,
-  type CutSegment,
-} from '@shared/timeline'
+import { promoContentFor, type EditedSegment } from '@shared/timeline'
 import ChatScreen from '../chat/ChatScreen'
 import WingPromoShot from '../promo/WingPromoShot'
 import BrollPlaceholder from './BrollPlaceholder'
 import Scaled from './Scaled'
 import { useLoop } from '../../lib/useLoop'
 
-function BrollVideo({ url }: { url: string }) {
+function BrollVideo({ url, startS }: { url: string; startS?: number }) {
   return (
     <video
-      src={url}
+      // The fragment makes the preview open on the same frame the trim
+      // handle picked, so the storyboard shows what the render will show.
+      src={startS ? `${url}#t=${startS.toFixed(2)}` : url}
       autoPlay
       muted
       loop
@@ -69,21 +65,44 @@ export function ClipFrame({
   segment,
   chat,
   hook,
-  brollUrl,
+  mediaUrl,
   storyUrl,
   isIntro,
 }: {
-  segment: CutSegment
+  segment: EditedSegment
   chat: ChatSpec
   hook?: string
-  brollUrl?: string
+  /** Resolved URL of the clip or photo this frame plays. */
+  mediaUrl?: string
   storyUrl?: string
   isIntro?: boolean
 }) {
   if (segment.type === 'broll') {
     return (
       <div style={{ position: 'relative', width: CHAT_CANVAS.width, height: CHAT_CANVAS.height }}>
-        {brollUrl ? <BrollVideo url={brollUrl} /> : <BrollPlaceholder />}
+        {mediaUrl ? <BrollVideo url={mediaUrl} startS={segment.trimStartS} /> : <BrollPlaceholder />}
+        {isIntro && hook && <HookText hook={hook} />}
+      </div>
+    )
+  }
+  if (segment.type === 'image') {
+    return (
+      <div style={{ position: 'relative', width: CHAT_CANVAS.width, height: CHAT_CANVAS.height }}>
+        {mediaUrl ? (
+          <img
+            src={mediaUrl}
+            alt=""
+            style={{
+              width: CHAT_CANVAS.width,
+              height: CHAT_CANVAS.height,
+              maxWidth: 'none',
+              objectFit: 'cover',
+              display: 'block',
+            }}
+          />
+        ) : (
+          <BrollPlaceholder />
+        )}
         {isIntro && hook && <HookText hook={hook} />}
       </div>
     )
@@ -106,44 +125,35 @@ export function ClipFrame({
  * from outside (the storyboard); left alone it loops on its own.
  */
 export default function ClipPlayer({
+  segments,
   chat,
-  timing,
   hook,
-  burstUrls = [],
+  mediaUrls = [],
   storyUrl,
   height = 460,
   playing = true,
   activeIndex,
   onIndexChange,
 }: {
+  segments: EditedSegment[]
   chat: ChatSpec
-  timing?: ClipTiming
   hook?: string
-  /** One URL per b-roll beat, already resolved (slots included). */
-  burstUrls?: string[]
+  /** One URL per frame, empty where the frame plays no file. */
+  mediaUrls?: string[]
   storyUrl?: string
   height?: number
   playing?: boolean
   activeIndex?: number
   onIndexChange?: (index: number) => void
 }) {
-  const timeline = useMemo(() => buildCutsTimeline(chat, timing), [chat, timing])
-  const durations = useMemo(() => timeline.segments.map((s) => s.durS), [timeline])
+  const durations = useMemo(() => segments.map((s) => s.durS), [segments])
   const [looped] = useLoop(durations, playing && activeIndex === undefined)
-  const index = Math.min(activeIndex ?? looped, timeline.segments.length - 1)
-  const segment = timeline.segments[index]
+  const index = Math.min(activeIndex ?? looped, segments.length - 1)
+  const segment = segments[index]
 
   useEffect(() => {
     if (activeIndex === undefined) onIndexChange?.(looped)
   }, [looped, activeIndex, onIndexChange])
-
-  const brollForIndex = useMemo(
-    () =>
-      timeline.segments.map((s, i) =>
-        s.type === 'broll' ? burstUrls[burstOrdinalAt(timeline.segments, i)] : undefined,
-      ),
-    [timeline, burstUrls],
-  )
 
   if (!segment) return null
   return (
@@ -152,7 +162,7 @@ export default function ClipPlayer({
         segment={segment}
         chat={chat}
         hook={hook}
-        brollUrl={brollForIndex[index]}
+        mediaUrl={mediaUrls[index] || undefined}
         storyUrl={storyUrl}
         isIntro={index === 0}
       />

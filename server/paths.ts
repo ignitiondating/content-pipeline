@@ -25,6 +25,8 @@ export const SHOTS_DIR = path.join(LIBRARY_DIR, 'shots')
 export const OUT_DIR = path.join(STATE_ROOT, 'out')
 export const RENDER_DIR = path.join(OUT_DIR, 'render')
 export const EXPORTS_DIR = path.join(OUT_DIR, 'exports')
+/** Cached thumbnail strips, one per clip, behind the trim handles. */
+export const FILMSTRIPS_DIR = path.join(OUT_DIR, 'filmstrips')
 
 /** Served files live under STATE_ROOT (library/, out/). */
 export const FILES_ROOT = STATE_ROOT

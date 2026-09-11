@@ -17,6 +17,7 @@ import { allSettings, getDraft, getSetting, listDrafts, setSetting, statusCounts
 import { MODELS } from '../generate/client'
 import { generateBatch, regenerateDraft } from '../generate/service'
 import { probeFfmpeg } from '../render/ffmpeg'
+import { FILMSTRIP_FRAMES, filmstripFor } from '../render/filmstrip'
 import { exportJob, listExports } from '../render/export'
 import { enqueueRender, getJob, listJobs, jobOutputs } from '../render/jobs'
 
@@ -224,6 +225,24 @@ api.get('/chat-shots/:id', (c) => {
 api.get('/promo-shots/:id', (c) => {
   const spec = getPromoShotSpec(c.req.param('id'))
   return spec ? c.json({ spec }) : c.json({ error: 'not found or expired' }, 404)
+})
+
+// The thumbnail strip behind the trim handles. Cached per file, so the
+// first request pays for FFmpeg and the rest are served from disk.
+api.get('/assets/filmstrip', async (c) => {
+  const assetPath = c.req.query('path') ?? ''
+  const listed = listAssets().some((a) => a.path === assetPath && !a.missing)
+  if (!listed) return c.json({ error: 'unknown asset' }, 404)
+  try {
+    const { file, durationS } = await filmstripFor(assetPath)
+    return c.json({
+      url: `/files/${path.relative(FILES_ROOT, file).split(path.sep).join('/')}`,
+      frames: FILMSTRIP_FRAMES,
+      durationS,
+    })
+  } catch (error) {
+    return c.json({ error: asError(error) }, 400)
+  }
 })
 
 api.post('/assets/rescan', async (c) => {

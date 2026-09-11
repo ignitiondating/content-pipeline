@@ -82,6 +82,89 @@ export interface CutsTimeline {
   durationS: number
 }
 
+/** A frame of the frozen edit: what plays, for how long, from where. */
+export type EditedSegment =
+  | { type: 'chat'; visibleCount: number; durS: number }
+  | { type: 'promo'; durS: number }
+  | { type: 'broll'; path: string; durS: number; trimStartS?: number; trimEndS?: number }
+  | { type: 'image'; path: string; durS: number }
+
+/**
+ * Freezes the derived structure into an explicit list, resolving which clip
+ * lands on each burst. Called the first time the operator moves, inserts or
+ * trims something — from then on the list is the edit.
+ */
+export function materializeSegments(
+  chat: ChatSpec,
+  orderedBrollPaths: string[],
+  options?: { timing?: ClipTiming; slots?: Record<string, string> },
+): EditedSegment[] {
+  const timeline = buildCutsTimeline(chat, options?.timing)
+  const burstPaths = resolveBrollForBursts(
+    timeline.segments.filter((s) => s.type === 'broll').length,
+    orderedBrollPaths,
+    options?.slots,
+  )
+  return timeline.segments.map((segment, i) => {
+    if (segment.type === 'chat') {
+      return { type: 'chat', visibleCount: segment.visibleCount, durS: segment.durS }
+    }
+    if (segment.type === 'promo') return { type: 'promo', durS: segment.durS }
+    return {
+      type: 'broll',
+      path: burstPaths[burstOrdinalAt(timeline.segments, i)] ?? '',
+      durS: segment.durS,
+    }
+  })
+}
+
+/**
+ * Drops frames whose message no longer exists and appends the messages that
+ * gained no frame, so editing the conversation can't orphan a frozen edit.
+ */
+export function reconcileSegments(segments: EditedSegment[], chat: ChatSpec): EditedSegment[] {
+  const count = chat.messages.length
+  const kept = segments.filter((s) => s.type !== 'chat' || s.visibleCount <= count)
+  const covered = new Set(kept.filter((s) => s.type === 'chat').map((s) => s.visibleCount))
+  const missing: EditedSegment[] = []
+  for (let n = 1; n <= count; n++) {
+    if (!covered.has(n)) missing.push({ type: 'chat', visibleCount: n, durS: 2.2 })
+  }
+  return [...kept, ...missing]
+}
+
+/** Total runtime of a frozen edit. */
+export const segmentsDurationS = (segments: EditedSegment[]): number =>
+  round(segments.reduce((sum, s) => sum + s.durS, 0))
+
+/**
+ * Scales every frame proportionally back to the target runtime — the manual
+ * counterpart of the solver's automatic fit, offered once the edit is frozen.
+ */
+export function fitToTarget(segments: EditedSegment[], targetS = CUTS_TARGET_S): EditedSegment[] {
+  const total = segments.reduce((sum, s) => sum + s.durS, 0)
+  if (total <= 0) return segments
+  const scale = targetS / total
+  return segments.map((s) => ({ ...s, durS: round(Math.max(0.4, s.durS * scale)) }))
+}
+
+/** The one door the renderer and every preview use to get the structure. */
+export function resolveClipSegments(
+  spec: {
+    chat: ChatSpec
+    segments?: EditedSegment[]
+    timing?: ClipTiming
+    brollSlots?: Record<string, string>
+  },
+  orderedBrollPaths: string[],
+): EditedSegment[] {
+  if (spec.segments?.length) return spec.segments
+  return materializeSegments(spec.chat, orderedBrollPaths, {
+    timing: spec.timing,
+    slots: spec.brollSlots,
+  })
+}
+
 /**
  * Which clip plays on each b-roll beat, shared by the renderer and every
  * preview so the storyboard shows exactly what will be rendered: a slot
@@ -124,9 +207,11 @@ export interface ClipTiming {
 // cuts on the 33.07s @fivestaryra video): intro 2.5, mid bursts 2.5-3.1,
 // promo 2.1, outro montage ~6.5, chat screens 1.5-2.7 with the story
 // opener held longest (~3.1).
+/** The reference runtime every cuts clip aims for. */
+export const CUTS_TARGET_S = 33.0
+
 const CUTS = {
-  /** Cuts clips target the reference's exact runtime. */
-  targetS: 33.0,
+  targetS: CUTS_TARGET_S,
   introS: 2.5,
   burstS: 2.8,
   outroS: 6.5,

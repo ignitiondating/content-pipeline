@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { buildClipTimeline, buildCutsTimeline } from './timeline'
+import {
+  buildClipTimeline,
+  buildCutsTimeline,
+  fitToTarget,
+  materializeSegments,
+  reconcileSegments,
+  resolveClipSegments,
+  segmentsDurationS,
+} from './timeline'
 import { CLIP_LIMITS } from './formats/clip'
 import type { ChatSpec } from './formats/chat'
 
@@ -149,6 +157,40 @@ describe('buildCutsTimeline', () => {
   it('lets the clip run long when the pins alone exceed the target', () => {
     const t = buildCutsTimeline(spec, { introS: 15, outroS: 20, promoS: 15 })
     expect(t.durationS).toBeGreaterThan(33)
+  })
+
+  it('materializes into a list identical to the derived structure', () => {
+    const clips = ['a.mp4', 'b.mp4', 'c.mp4']
+    const frozen = materializeSegments(spec, clips)
+    const derived = buildCutsTimeline(spec)
+    expect(frozen.map((s) => s.type)).toEqual(derived.segments.map((s) => s.type))
+    expect(frozen.map((s) => s.durS)).toEqual(derived.segments.map((s) => s.durS))
+    expect(segmentsDurationS(frozen)).toBeCloseTo(derived.durationS, 3)
+    // Every b-roll frame carries the clip it will actually play.
+    expect(frozen.filter((s) => s.type === 'broll').every((s) => 'path' in s && s.path)).toBe(true)
+  })
+
+  it('reconciles a frozen edit when messages are deleted or added', () => {
+    const frozen = materializeSegments(spec, ['a.mp4'])
+    const shorter = { ...spec, messages: spec.messages.slice(0, 3) }
+    const trimmed = reconcileSegments(frozen, shorter)
+    expect(trimmed.every((s) => s.type !== 'chat' || s.visibleCount <= 3)).toBe(true)
+
+    const longer = { ...spec, messages: [...spec.messages, { from: 'them' as const, text: 'new one' }] }
+    const grown = reconcileSegments(frozen, longer)
+    const chats = grown.filter((s) => s.type === 'chat')
+    expect(chats.some((s) => s.visibleCount === longer.messages.length)).toBe(true)
+  })
+
+  it('fits a frozen edit back to the target runtime', () => {
+    const stretched = materializeSegments(spec, ['a.mp4']).map((s) => ({ ...s, durS: s.durS * 2 }))
+    expect(segmentsDurationS(fitToTarget(stretched))).toBeCloseTo(33, 1)
+  })
+
+  it('resolveClipSegments prefers the frozen edit over deriving', () => {
+    const custom = [{ type: 'chat' as const, visibleCount: 1, durS: 9 }]
+    expect(resolveClipSegments({ chat: spec, segments: custom }, [])).toBe(custom)
+    expect(resolveClipSegments({ chat: spec }, ['a.mp4']).length).toBeGreaterThan(1)
   })
 
   it('keeps the total inside the clip limits', () => {

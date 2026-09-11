@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { Draft } from '@shared/formats/draft'
 import { SPEC_SCHEMAS, type Format } from '@shared/formats/draft'
-import { buildClipTimeline, buildCutsTimeline } from '@shared/timeline'
+import { buildClipTimeline, resolveClipSegments } from '@shared/timeline'
 import type { ClipSpec } from '@shared/formats/clip'
 import { carouselSlideCount, type CarouselSpec } from '@shared/formats/carousel'
 import DraftPreview from '../components/studio/DraftPreview'
@@ -52,9 +52,9 @@ export default function DraftEditor() {
     if ((spec.structure ?? 'overlay') === 'cuts') {
       // Scrub through the cuts segments (b-roll beats keep the previous count).
       let t = 0
-      const states = buildCutsTimeline(spec.chat).segments.map((segment) => {
+      const states = resolveClipSegments(spec, []).map((segment) => {
         const state = {
-          visibleCount: segment.visibleCount,
+          visibleCount: segment.type === 'chat' ? segment.visibleCount : undefined,
           typing: false,
           broll: segment.type === 'broll',
           promo: segment.type === 'promo',
