@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, type AssetItem } from '../../lib/api'
+import MediaLibrary from './MediaLibrary'
 
 /** First frame of a clip, no server-side thumbnailing needed. */
 function VideoThumb({ path }: { path: string }) {
@@ -55,6 +56,7 @@ export default function AssetPicker({
 
   return (
     <div>
+      <MediaLibrary tag={tag} onPick={(asset) => onChange([asset.path, ...selected.filter((p) => p !== asset.path)])} onAssets={(assets) => { setBroll(assets.filter((a) => a.kind === 'broll')); setBackgrounds(assets.filter((a) => a.kind === 'background')) }} />
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <button
           onClick={() => onChange([])}

@@ -10,6 +10,7 @@ import {
   segmentsDurationS,
   type EditedSegment,
 } from '../../shared/timeline'
+import type { EditorManifest } from './editorBundle'
 import { dropPromoShotSpec, stashPromoShotSpec } from './promoShot'
 import { assetsInPathOrder, listAssets, markAssetUsed, pickAsset, type Asset } from '../assets/catalog'
 import { captureSequence, type CaptureRequest } from '../capture/screenshot'
@@ -49,8 +50,8 @@ export async function renderClip(
     const segments = resolveClipSegments(spec, ordered.map((a) => a.path))
     const live = listAssets()
     const media = segments.filter((s) => s.type === 'broll' || s.type === 'image')
-    if (media.some((s) => !live.some((a) => a.path === s.path && !a.missing)) && !ordered.length) {
-      throw noBroll()
+    if (media.some((s) => !live.some((a) => a.path === s.path && !a.missing))) {
+      throw new Error('This edit references missing media. Replace it in the timeline before rendering.')
     }
     for (const p of new Set(media.map((s) => s.path))) {
       const asset = live.find((a) => a.path === p && !a.missing)
@@ -58,7 +59,9 @@ export async function renderClip(
     }
     await renderCuts(draft, spec, segments, music, workdir, setProgress)
   } else {
-    const broll = pickAsset('broll', spec.brollTag)
+    const broll = spec.brollPaths?.length
+      ? listAssets().find((a) => a.path === spec.brollPaths![0] && a.kind === 'broll' && !a.missing)
+      : pickAsset('broll', spec.brollTag)
     if (!broll) throw noBroll()
     await renderOverlay(draft, spec, broll, music, workdir, setProgress)
   }
@@ -122,6 +125,13 @@ async function renderOverlay(
   await runFfmpeg(caps.path, args, workdir, durationS, (frac) =>
     setProgress(0.35 + frac * 0.63, 'encoding'),
   )
+  const manifest: EditorManifest = {
+    caption: draft.meta.caption, script: spec.chat.messages.map((m) => `${m.from}: ${m.text}`), hook: spec.hook,
+    hookEndS: hookEnd, musicPath: music?.path,
+    beats: [{ file: broll.path, source: 'library', startS: 0, durS: durationS },
+      ...timeline.states.map((state, i) => ({ file: `state_${String(i).padStart(2, '0')}.png`, source: 'render' as const, layer: 'overlay', startS: state.tStartS, durS: state.tEndS - state.tStartS }))],
+  }
+  writeFileSync(path.join(workdir, 'editor-manifest.json'), JSON.stringify(manifest))
   setProgress(1)
 }
 
@@ -148,13 +158,15 @@ async function renderCuts(
 
   setProgress(0.05, `capturing ${chatSegments.length} chat screens`)
   // Zoomed-DM screens: only the previous message + the new one, huge.
-  // Instagram story-reply openers get a photo from library/backgrounds.
+  // Use the exact story selected in the editor; without a selection the
+  // capture component uses the same bundled starter photo as the preview.
   const wantsStory = spec.chat.skin === 'instagram' && spec.chat.storyReply
   const storyAsset = wantsStory
     ? (spec.storyImagePath
         ? (listAssets().find((a) => a.path === spec.storyImagePath && !a.missing) ?? null)
-        : pickAsset('background'))
+        : null)
     : null
+  if (wantsStory && spec.storyImagePath && !storyAsset) throw new Error('The selected story image is missing. Replace it in the editor before rendering.')
   const story = storyAsset ? `&story=${encodeURIComponent(`/files/${storyAsset.path}`)}` : ''
   const captures: CaptureRequest[] = chatSegments.map((segment) => ({
     route: `/render/chat?specId=${draft.id}&zoom=1&visible=${segment.visibleCount}${
@@ -230,7 +242,16 @@ async function renderCuts(
 
   const filters: string[] = []
   const labels: string[] = []
+  const beats: EditorManifest['beats'] = []
+  let timelineStart = 0
   segments.forEach((segment, i) => {
+    const beat: EditorManifest['beats'][number] = {
+      file: segment.type === 'chat' ? `chat_${pad2(segment.visibleCount)}.png` : segment.type === 'promo' ? 'promo.png' : segment.path,
+      source: segment.type === 'broll' || segment.type === 'image' ? 'library' : 'render',
+      startS: timelineStart, durS: segment.durS,
+    }
+    timelineStart = Math.round((timelineStart + segment.durS) * 1000) / 1000
+    beats.push(beat)
     if (segment.type === 'broll') {
       const source = videoInputs.get(segment.path)!
       const trimmed = segment.trimStartS !== undefined || segment.trimEndS !== undefined
@@ -242,6 +263,8 @@ async function renderCuts(
       if (available <= segment.durS + 0.05) {
         // Shorter than its beat: stretch it (subtle slow-mo) instead of
         // looping — a restart mid-beat reads as a glitch.
+        beat.trimStartS = start
+        beat.trimEndS = start + available
         const ratio = segment.durS / Math.max(available, 0.1)
         const cut = trimmed
           ? `trim=start=${start.toFixed(3)}:duration=${available.toFixed(3)},`
@@ -257,6 +280,8 @@ async function renderCuts(
           from = (source.uses * 6.7) % Math.max(source.durS - segment.durS, 0.01)
           if (from + segment.durS > source.durS) from = 0
         }
+        beat.trimStartS = from
+        beat.trimEndS = from + segment.durS
         source.uses++
         filters.push(
           `[${source.input}:v]trim=start=${from.toFixed(3)}:duration=${segment.durS.toFixed(3)},setpts=PTS-STARTPTS,${NORM}[s${i}]`,
@@ -293,6 +318,10 @@ async function renderCuts(
   await runFfmpeg(caps.path, args, workdir, durationS, (frac) =>
     setProgress(0.35 + frac * 0.63, 'encoding'),
   )
+  const manifest: EditorManifest = { caption: draft.meta.caption,
+    script: spec.chat.messages.map((m) => `${m.from}: ${m.text}`), hook: spec.hook,
+    hookEndS: hookEnd, musicPath: music?.path, beats }
+  writeFileSync(path.join(workdir, 'editor-manifest.json'), JSON.stringify(manifest))
   setProgress(1)
 }
 

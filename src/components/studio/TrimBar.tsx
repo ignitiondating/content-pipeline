@@ -37,7 +37,7 @@ export default function TrimBar({
 
   const total = strip?.durationS ?? 0
   const start = Math.max(0, trimStartS ?? 0)
-  const end = Math.min(trimEndS ?? total, total)
+  const end = Math.min(trimEndS ?? total, total, start + 20)
 
   // Nothing to drag against until we know how long the clip is.
   if (error) return <p className="text-xs text-amber-400">Preview strip unavailable: {error}</p>
@@ -53,8 +53,8 @@ export default function TrimBar({
   const move = (clientX: number, handle: 'start' | 'end') => {
     const at = secondsAt(clientX)
     // Handles can't cross, and never leave less than a third of a second.
-    if (handle === 'start') onChange({ trimStartS: Math.min(at, end - 0.3), trimEndS: end })
-    else onChange({ trimStartS: start, trimEndS: Math.max(at, start + 0.3) })
+    if (handle === 'start') onChange({ trimStartS: Math.max(0, end - 20, Math.min(at, end - 0.3)), trimEndS: end })
+    else onChange({ trimStartS: start, trimEndS: Math.min(total, start + 20, Math.max(at, start + 0.3)) })
   }
 
   const pct = (s: number) => `${total ? (s / total) * 100 : 0}%`
@@ -71,7 +71,7 @@ export default function TrimBar({
         }}
         onPointerMove={(e) => dragging && move(e.clientX, dragging)}
         onPointerUp={() => setDragging(null)}
-        onPointerLeave={() => setDragging(null)}
+        onPointerCancel={() => setDragging(null)}
       >
         {/* Everything outside the handles is what gets left on the floor. */}
         <div className="absolute inset-y-0 left-0 bg-neutral-950/70" style={{ width: pct(start) }} />
@@ -85,7 +85,7 @@ export default function TrimBar({
             key={handle}
             aria-label={handle === 'start' ? 'Trim from the start' : 'Trim from the end'}
             onPointerDown={(e) => {
-              e.currentTarget.releasePointerCapture?.(e.pointerId)
+              e.currentTarget.setPointerCapture(e.pointerId)
               setDragging(handle)
             }}
             className="absolute inset-y-0 flex w-7 cursor-ew-resize items-center justify-center"

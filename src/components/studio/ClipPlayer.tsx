@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { CHAT_CANVAS, type ChatSpec } from '@shared/formats/chat'
 import { promoContentFor, type EditedSegment } from '@shared/timeline'
 import ChatScreen from '../chat/ChatScreen'
@@ -7,30 +7,34 @@ import BrollPlaceholder from './BrollPlaceholder'
 import Scaled from './Scaled'
 import { useLoop } from '../../lib/useLoop'
 
-function BrollVideo({ url, startS }: { url: string; startS?: number }) {
-  return (
-    <video
-      // The fragment makes the preview open on the same frame the trim
-      // handle picked, so the storyboard shows what the render will show.
-      src={startS ? `${url}#t=${startS.toFixed(2)}` : url}
-      autoPlay
-      muted
-      loop
-      playsInline
-      style={{
-        width: CHAT_CANVAS.width,
-        height: CHAT_CANVAS.height,
-        // Tailwind's preflight sets max-width:100% on <video>, which would
-        // letterbox it inside the scaled canvas.
-        maxWidth: 'none',
-        objectFit: 'cover',
-        display: 'block',
-      }}
-    />
-  )
+function BrollVideo({ url, startS = 0, endS, durationS, playing = true, seekOffset }: { url: string; startS?: number; endS?: number; durationS: number; playing?: boolean; seekOffset?: number }) {
+  const video = useRef<HTMLVideoElement>(null)
+  const previous = useRef<{ url: string; startS: number; playing: boolean; seekOffset?: number } | null>(null)
+  useEffect(() => {
+    const element = video.current
+    if (!element) return
+    const last = previous.current
+    const justPaused = last?.playing && !playing && last.url === url && last.startS === startS && last.seekOffset === seekOffset
+    previous.current = { url, startS, playing, seekOffset }
+    const seek = () => {
+      // Show a useful still when selecting footage; explicit scrubs and the
+      // actual playback start keep their original timing.
+      if (justPaused) return
+      const offset = seekOffset ?? (playing ? 0 : Math.min(1, Math.max(0, durationS - 0.05)))
+      const sourceEnd = Number.isFinite(element.duration) ? element.duration : Infinity
+      const end = Math.min(sourceEnd, endS ?? Infinity)
+      element.currentTime = Math.max(0, Math.min(startS + offset, Math.max(0, end - 0.05)))
+    }
+    if (element.readyState >= 1) seek()
+    else element.addEventListener('loadedmetadata', seek, { once: true })
+    if (playing) void element.play().catch(() => {})
+    else element.pause()
+    return () => element.removeEventListener('loadedmetadata', seek)
+  }, [url, startS, endS, durationS, playing, seekOffset])
+  return <video ref={video} src={url} muted loop playsInline style={{ width: CHAT_CANVAS.width, height: CHAT_CANVAS.height, maxWidth: 'none', objectFit: 'cover', display: 'block' }} />
 }
 
-function HookText({ hook }: { hook: string }) {
+export function HookText({ hook }: { hook: string }) {
   return (
     <div
       style={{
@@ -68,6 +72,8 @@ export function ClipFrame({
   mediaUrl,
   storyUrl,
   isIntro,
+  playing = true,
+  seekOffset,
 }: {
   segment: EditedSegment
   chat: ChatSpec
@@ -75,12 +81,14 @@ export function ClipFrame({
   /** Resolved URL of the clip or photo this frame plays. */
   mediaUrl?: string
   storyUrl?: string
+  playing?: boolean
+  seekOffset?: number
   isIntro?: boolean
 }) {
   if (segment.type === 'broll') {
     return (
       <div style={{ position: 'relative', width: CHAT_CANVAS.width, height: CHAT_CANVAS.height }}>
-        {mediaUrl ? <BrollVideo url={mediaUrl} startS={segment.trimStartS} /> : <BrollPlaceholder />}
+        {mediaUrl ? <BrollVideo url={mediaUrl} startS={segment.trimStartS} endS={segment.trimEndS} durationS={segment.durS} playing={playing} seekOffset={seekOffset} /> : <BrollPlaceholder />}
         {isIntro && hook && <HookText hook={hook} />}
       </div>
     )
@@ -134,6 +142,7 @@ export default function ClipPlayer({
   playing = true,
   activeIndex,
   onIndexChange,
+  seekOffset,
 }: {
   segments: EditedSegment[]
   chat: ChatSpec
@@ -144,6 +153,7 @@ export default function ClipPlayer({
   height?: number
   playing?: boolean
   activeIndex?: number
+  seekOffset?: number
   onIndexChange?: (index: number) => void
 }) {
   const durations = useMemo(() => segments.map((s) => s.durS), [segments])
@@ -159,6 +169,9 @@ export default function ClipPlayer({
   return (
     <Scaled height={height}>
       <ClipFrame
+        key={index}
+        playing={playing}
+        seekOffset={seekOffset}
         segment={segment}
         chat={chat}
         hook={hook}

@@ -1,3 +1,4 @@
+import defaultStory from '../../assets/story-default.png'
 import { CHAT_CANVAS, CHAT_SKINS, CHAT_THEMES, TAPBACK_GLYPHS, type ChatMessage, type ChatSpec } from '@shared/formats/chat'
 
 interface ChatScreenProps {
@@ -12,7 +13,7 @@ interface ChatScreenProps {
    * zoomed-DM look reference clips use.
    */
   mode?: 'full' | 'card' | 'zoom'
-  /** Photo for the story-reply thumbnail; falls back to a gradient card. */
+  /** Photo for the story-reply thumbnail; falls back to the bundled starter story photo. */
   storyImageUrl?: string
 }
 
@@ -290,10 +291,10 @@ export default function ChatScreen({
                 background: 'linear-gradient(200deg,#3a3f52 0%,#22242e 55%,#191a20 100%)',
               }}
             >
-              {storyImageUrl && (
+              {(
                 <img
-                  src={storyImageUrl}
-                  alt=""
+                  src={storyImageUrl ?? defaultStory}
+                  alt="Story being replied to"
                   style={{ width: '100%', height: '100%', objectFit: 'cover', maxWidth: 'none' }}
                 />
               )}

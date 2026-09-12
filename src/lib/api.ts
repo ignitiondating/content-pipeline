@@ -1,3 +1,5 @@
+import type { ClipSpec } from '@shared/formats/clip'
+import type { VideoTemplate } from '@shared/templates'
 import type { Draft } from '@shared/formats/draft'
 import type { TimelineState } from '@shared/timeline'
 import type { Examples } from '@shared/examples'
@@ -30,6 +32,7 @@ export interface Job {
 }
 
 export interface ExportItem {
+  title?: string
   id: string
   draftId: string
   dir: string
@@ -58,7 +61,15 @@ export interface SpecResponse {
 }
 
 export const api = {
+  templates: () => request<{ templates: VideoTemplate[] }>('/api/templates'),
+  saveTemplate: (body: Omit<VideoTemplate, 'id'>) => request<{ template: VideoTemplate }>('/api/templates', { method: 'POST', body: JSON.stringify(body) }),
+  startTemplate: (id: string) => request<{ draft: Draft }>(`/api/templates/${id}/start`, { method: 'POST' }),
+  editVariations: (body: { spec: ClipSpec; meta: Draft['meta']; count: number; hooks?: string[]; varyPacing?: boolean; shuffleFootage?: boolean }) => request<{ drafts: Draft[] }>('/api/edit-variations', { method: 'POST', body: JSON.stringify(body) }),
+  aiScript: (hook: string, chat: ClipSpec['chat'], instruction: string) => request<{ texts: string[] }>('/api/ai-script', { method: 'POST', body: JSON.stringify({ hook, chat, instruction }) }),
+  aiEdit: (spec: ClipSpec, instruction: string) => request<{ spec: ClipSpec }>('/api/ai-edit', { method: 'POST', body: JSON.stringify({ spec, instruction }) }),
   generate: (body: {
+    templateId?: string
+    hook?: string
     format: string
     brief: string
     count: number
@@ -84,6 +95,7 @@ export const api = {
   job: (id: string) => request<{ job: Job; outputs: string[] }>(`/api/render/${id}`),
   exportJob: (jobId: string) =>
     request<{ export: ExportItem }>(`/api/render/${jobId}/export`, { method: 'POST' }),
+  downloadBatch: (draftIds: string[]) => request<{ url: string }>('/api/exports/download-batch', { method: 'POST', body: JSON.stringify({ draftIds }) }),
   exports: () => request<{ exports: ExportItem[] }>('/api/exports'),
   markPosted: (draftId: string) =>
     request<{ draft: Draft }>(`/api/exports/${draftId}/posted`, { method: 'POST' }),

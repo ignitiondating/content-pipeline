@@ -30,14 +30,14 @@ export function useSpec(): { data: SpecResponse | null; error: string | null; pa
 }
 
 /**
- * Flags the page as capturable once fonts are loaded and two frames have
+ * Flags the page as capturable once fonts and images are loaded and two frames have
  * painted. Playwright waits on window.__READY__ before screenshotting.
  */
 export function useReadyFlag(contentRendered: boolean): void {
   useEffect(() => {
     if (!contentRendered) return
     let cancelled = false
-    document.fonts.ready.then(() => {
+    Promise.all([document.fonts.ready, ...Array.from(document.images).map((image) => image.decode().catch(() => {}))]).then(() => {
       requestAnimationFrame(() =>
         requestAnimationFrame(() => {
           if (!cancelled) window.__READY__ = true
