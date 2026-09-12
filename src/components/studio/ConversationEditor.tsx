@@ -50,11 +50,13 @@ export default function ConversationEditor({
           >
             {message.from === 'me' ? 'You' : 'Her'}
           </button>
-          <input
+          <textarea
+            aria-label={`Message ${i + 1}`}
+            rows={2}
             value={message.text}
             onChange={(e) => patch(i, { text: e.target.value })}
             placeholder="Write the message…"
-            className="min-w-0 flex-1 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2"
+            className="min-w-0 flex-1 resize-y rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2"
           />
           <div className="flex shrink-0 flex-col">
             <button
@@ -85,6 +87,7 @@ export default function ConversationEditor({
         </div>
       ))}
       <button
+        disabled={messages.length >= 24}
         onClick={() =>
           onChange([
             ...messages,

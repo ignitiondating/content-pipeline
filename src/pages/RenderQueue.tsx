@@ -76,6 +76,7 @@ export default function RenderQueue() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [exportingAll, setExportingAll] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -130,7 +131,15 @@ export default function RenderQueue() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="mb-6 text-2xl font-bold">Render queue</h1>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-2xl font-bold">Render queue</h1><p className="mt-2 text-sm text-neutral-400">Your videos render in the background. Keep creating while they finish.</p></div><Link to="/" className="rounded-lg border border-neutral-700 px-3 py-2 text-sm">+ Create more content</Link></div>
+      {groups.ready.length > 0 && <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-900 bg-emerald-950/20 p-4"><span className="text-sm">{groups.ready.length} video{groups.ready.length > 1 ? 's' : ''} ready to download</span><button disabled={exportingAll || Boolean(busyId)} onClick={async () => {
+        setExportingAll(true); setError(null)
+        const failed: string[] = []
+        for (const { latest: job } of groups.ready) { try { await api.exportJob(job.id) } catch (e) { failed.push((e as Error).message) } }
+        setExportingAll(false)
+        if (failed.length) setError(failed.join('; '))
+        else window.location.assign('/library')
+      }} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm disabled:opacity-50">{exportingAll ? 'Preparing downloads…' : `Prepare all ${groups.ready.length} downloads →`}</button></div>}
       {error && <div className="mb-4 rounded-lg bg-red-950 p-3 text-sm text-red-300">{error}</div>}
       {total === 0 && (
         <p className="text-neutral-500">No render jobs yet — send an approved draft here from Review.</p>
@@ -162,7 +171,7 @@ export default function RenderQueue() {
             </div>
             <p className="mb-3 break-all text-xs text-red-400">{job.message}</p>
             <button
-              disabled={busyId === job.draft_id}
+              disabled={exportingAll || busyId === job.draft_id}
               onClick={() => act(job.draft_id, () => api.render(job.draft_id))}
               className="rounded-lg bg-wing-600 px-3 py-1.5 text-sm hover:bg-wing-500 disabled:opacity-50"
             >
@@ -172,7 +181,7 @@ export default function RenderQueue() {
         ))}
       </Section>
 
-      <Section title="Ready to export" count={groups.ready.length}>
+      <Section title="Ready to download" count={groups.ready.length}>
         {groups.ready.map(({ latest: job, count }) => (
           <div
             key={job.draft_id}
@@ -184,11 +193,11 @@ export default function RenderQueue() {
               <div className="mt-1 text-xs text-neutral-500">{metaLine(job, count)}</div>
               <div className="mt-auto flex gap-2 pt-3">
                 <button
-                  disabled={busyId === job.draft_id}
+                  disabled={exportingAll || busyId === job.draft_id}
                   onClick={() => act(job.draft_id, () => api.exportJob(job.id))}
                   className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium hover:bg-emerald-600 disabled:opacity-50"
                 >
-                  Export to library
+                  Prepare download
                 </button>
                 <Link
                   to={`/drafts/${job.draft_id}`}
@@ -197,7 +206,7 @@ export default function RenderQueue() {
                   Edit draft
                 </Link>
                 <button
-                  disabled={busyId === job.draft_id}
+                  disabled={exportingAll || busyId === job.draft_id}
                   onClick={() => act(job.draft_id, () => api.render(job.draft_id))}
                   className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm hover:border-neutral-500 disabled:opacity-50"
                 >
@@ -221,7 +230,7 @@ export default function RenderQueue() {
             <span className="shrink-0 text-xs text-emerald-500">exported ✓</span>
             {job.outputs.length > 0 && (
               <button
-                disabled={busyId === job.draft_id}
+                disabled={exportingAll || busyId === job.draft_id}
                 onClick={() => act(job.draft_id, () => api.exportJob(job.id))}
                 title="Replace the Library copy with this render"
                 className="shrink-0 rounded-lg border border-neutral-800 px-2 py-1 text-xs text-neutral-400 hover:border-neutral-600 hover:text-white disabled:opacity-50"

@@ -1,4 +1,5 @@
 import { serve } from '@hono/node-server'
+import { byteRange } from './http/byteRange'
 import { createReadStream, existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import path from 'node:path'
@@ -63,9 +64,21 @@ app.get('/files/*', (c) => {
   const stat = statSync(full, { throwIfNoEntry: false })
   if (!stat?.isFile()) return c.text('not found', 404)
   const mime = MIME[path.extname(full).toLowerCase()] ?? 'application/octet-stream'
+  const rangeHeader = c.req.header('Range')
+  if (rangeHeader) {
+    const range = byteRange(rangeHeader, stat.size)
+    if (!range) return c.body(null, 416, { 'Content-Range': `bytes */${stat.size}`, 'Accept-Ranges': 'bytes' })
+    return c.body(Readable.toWeb(createReadStream(full, range)) as ReadableStream, 206, {
+      'Content-Type': mime,
+      'Content-Length': String(range.end - range.start + 1),
+      'Content-Range': `bytes ${range.start}-${range.end}/${stat.size}`,
+      'Accept-Ranges': 'bytes',
+    })
+  }
   return c.body(Readable.toWeb(createReadStream(full)) as ReadableStream, 200, {
     'Content-Type': mime,
     'Content-Length': String(stat.size),
+    'Accept-Ranges': 'bytes',
   })
 })
 

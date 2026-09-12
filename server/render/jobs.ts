@@ -1,3 +1,4 @@
+import { buildEditorBundle } from './editorBundle'
 import { mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { getDb, newId, now } from '../db/index'
@@ -64,7 +65,11 @@ async function runJob(jobId: string): Promise<void> {
   try {
     if (draft.format === 'carousel') await renderCarousel(draft, job.workdir, setProgress)
     else if (draft.format === 'slideshow') await renderSlideshow(draft, job.workdir, setProgress)
-    else await renderClip(draft, job.workdir, setProgress)
+    else {
+      await renderClip(draft, job.workdir, setProgress)
+      setProgress(0.99, 'packaging CapCut media')
+      buildEditorBundle(job.workdir)
+    }
 
     db.prepare(
       "UPDATE jobs SET status = 'done', progress = 1, message = 'done', finished_at = ? WHERE id = ?",
@@ -94,7 +99,7 @@ export function listJobs(limit = 50): JobRow[] {
 export function jobOutputs(job: JobRow): string[] {
   try {
     return readdirSync(job.workdir)
-      .filter((f) => f.startsWith('slide_') || f === 'out.mp4')
+      .filter((f) => f.startsWith('slide_') || f === 'out.mp4' || f === 'capcut-media.zip')
       .sort()
   } catch {
     return []

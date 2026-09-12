@@ -19,9 +19,17 @@ import { generateBatch, regenerateDraft } from '../generate/service'
 import { probeFfmpeg } from '../render/ffmpeg'
 import { FILMSTRIP_FRAMES, filmstripFor } from '../render/filmstrip'
 import { exportJob, listExports } from '../render/export'
+import { writeMediaZip } from '../render/zip'
+import { EXPORTS_DIR } from '../paths'
+import { newId } from '../db/index'
 import { enqueueRender, getJob, listJobs, jobOutputs } from '../render/jobs'
 
+import { studio, videoTemplate } from './studio'
+import { reconcileSegments } from '../../shared/timeline'
+import type { ClipSpec } from '../../shared/formats/clip'
+
 export const api = new Hono()
+api.route('/', studio)
 
 const asError = (error: unknown) =>
   error instanceof z.ZodError
@@ -33,6 +41,8 @@ const asError = (error: unknown) =>
 // ---- generation ----------------------------------------------------------
 
 const GenerateBody = z.object({
+  templateId: z.string().optional(),
+  hook: z.string().trim().max(80).optional(),
   format: z.enum(FORMATS),
   brief: z.string().max(2000).default(''),
   count: z.number().int().min(1).max(10).default(5),
@@ -47,7 +57,17 @@ const GenerateBody = z.object({
 api.post('/generate', async (c) => {
   try {
     const body = GenerateBody.parse(await c.req.json())
-    const drafts = await generateBatch(body)
+    const template = body.templateId ? videoTemplate(body.templateId) : null
+    if (template && (body.format !== 'clip' || body.serial)) throw new Error('Video templates require a non-serial clip batch')
+    const generated = await generateBatch(template ? { ...body, structure: template.spec.structure,
+      skin: template.spec.chat.skin, brollTag: template.spec.brollTag,
+      brief: `${body.brief}${body.hook ? `\nBuild the script around this exact on-screen hook: ${body.hook}` : ''}\nTemplate: ${template.name}. ${template.description}` } : body)
+    const drafts = template ? generated.map((draft) => {
+      const written = draft.spec as ClipSpec
+      return updateDraft(draft.id, { spec: { ...template.spec, hook: body.hook || written.hook,
+        chat: { ...template.spec.chat, messages: written.chat.messages, contact: written.chat.contact },
+        segments: template.spec.segments ? reconcileSegments(template.spec.segments, written.chat) : undefined } })
+    }) : generated
     return c.json({ drafts })
   } catch (error) {
     return c.json({ error: asError(error) }, 400)
@@ -119,7 +139,7 @@ api.get('/render', (c) => {
     const draft = getDraft(job.draft_id)
     return {
       ...job,
-      caption: draft?.meta.caption ?? '(draft deleted)',
+      caption: draft?.format === 'clip' ? (draft.spec as ClipSpec).hook : draft?.meta.caption ?? '(draft deleted)',
       format: draft?.format ?? job.kind,
       draftStatus: draft?.status ?? 'unknown',
       outputs: job.status === 'done' ? jobOutputs(job) : [],
@@ -144,7 +164,27 @@ api.post('/render/:jobId/export', (c) => {
 
 // ---- exports / library ---------------------------------------------------
 
-api.get('/exports', (c) => c.json({ exports: listExports() }))
+api.get('/exports', (c) => c.json({ exports: listExports().map((item) => { const draft = getDraft(item.draftId); return { ...item, title: draft?.format === 'clip' ? (draft.spec as ClipSpec).hook : item.caption } }) }))
+
+api.post('/exports/download-batch', async (c) => {
+  try {
+    const { draftIds } = z.object({ draftIds: z.array(z.string()).min(1).max(50) }).parse(await c.req.json())
+    const exports = listExports()
+    const entries = [...new Set(draftIds)].flatMap((id, index) => {
+      const item = exports.find((item) => item.draftId === id)
+      if (!item) throw new Error('A selected video has not been exported yet.')
+      return item.files.filter((file) => file !== 'capcut-media.zip').map((file) => ({
+        name: `video-${String(index + 1).padStart(2, '0')}/${file}`,
+        file: path.join(item.dir, file),
+      }))
+    })
+    const filename = `wingai-batch-${newId('download')}.zip`
+    const directory = path.join(EXPORTS_DIR, 'batches')
+    mkdirSync(directory, { recursive: true })
+    writeMediaZip(path.join(directory, filename), entries)
+    return c.json({ url: `/files/out/exports/batches/${filename}` })
+  } catch (error) { return c.json({ error: asError(error) }, 400) }
+})
 
 api.post('/exports/:draftId/posted', (c) => {
   try {
