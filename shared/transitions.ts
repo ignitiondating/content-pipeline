@@ -1,31 +1,19 @@
-import type { FadeStyle } from './formats/clip'
-
 /**
- * How long a frame fades to and from black. Felipe's note on the reference
- * edit: the cut between the basketball and a photo reads as a jump, and a
- * short dip to black is what makes them feel like one video. So every frame
- * gets one, scaled to its own length — a 6s outro can afford more than a
- * 1.5s reaction screen.
+ * A fade to black belongs to the clip, not to the video: which cut needs
+ * softening is an editing decision per beat, so nothing fades unless that
+ * beat says so. The one exception is the story-reply transition, which the
+ * reference format has always carried.
  */
-
-/** Fraction of the frame spent fading, per style, then clamped. */
-const RATIO: Record<FadeStyle, number> = { off: 0, soft: 0.1, strong: 0.15 }
-const MIN_S: Record<FadeStyle, number> = { off: 0, soft: 0.1, strong: 0.15 }
-const MAX_S: Record<FadeStyle, number> = { off: 0, soft: 0.28, strong: 0.4 }
 
 /** The reference's one soft cut: the story screen dips out, her reply lifts in. */
 const STORY_OUT_S = 0.6
 const STORY_IN_S = 0.45
 
-export const DEFAULT_FADE_STYLE: FadeStyle = 'soft'
-
 export interface FadeContext {
-  style?: FadeStyle
   /** The first frame never fades in: the hook is composited after the concat,
    *  so it would be left hanging over black, and a black frame 1 costs views. */
   isFirst?: boolean
-  isLast?: boolean
-  /** The story-reply transition, which is longer than a regular cut. */
+  /** The story-reply transition, the one fade a clip gets without asking. */
   story?: 'out' | 'in'
 }
 
@@ -42,18 +30,12 @@ const round = (v: number) => Math.round(v * 1000) / 1000
  * by the same amount, so what plays in the editor is what gets encoded.
  */
 export function fadeFor(segment: { durS: number; fadeS?: number }, context: FadeContext = {}): Fade {
-  const style = context.style ?? DEFAULT_FADE_STYLE
   // Both sides together can never eat more than two thirds of the frame, or a
   // short beat would spend its whole life dark.
   const cap = Math.max(0, Math.floor((segment.durS / 3) * 1000) / 1000)
-  const auto = style === 'off' ? 0 : Math.min(MAX_S[style], Math.max(MIN_S[style], segment.durS * RATIO[style]))
   const pinned = segment.fadeS
-  const storyOut = style === 'off' ? 0 : STORY_OUT_S
-  const storyIn = style === 'off' ? 0 : STORY_IN_S
-
-  const outBase = context.story === 'out' ? (pinned ?? storyOut) : (pinned ?? auto)
-  const inBase = context.story === 'in' ? (pinned ?? storyIn) : (pinned ?? auto)
-
+  const outBase = pinned ?? (context.story === 'out' ? STORY_OUT_S : 0)
+  const inBase = pinned ?? (context.story === 'in' ? STORY_IN_S : 0)
   return {
     inS: context.isFirst ? 0 : round(Math.min(cap, Math.max(0, inBase))),
     outS: round(Math.min(cap, Math.max(0, outBase))),
@@ -84,18 +66,15 @@ export function fadeOpacityAt(fade: Fade, durS: number, offset: number): number 
 /**
  * Every frame's fade in one pass — the list the renderer turns into filters
  * and the storyboard turns into opacity, so the preview can't drift from the
- * encode. The reference's story transition is just the two beats around it.
+ * encode. Frames that pinned no fade simply hard-cut.
  */
 export function fadesForSegments(
   segments: Array<{ type: string; durS: number; fadeS?: number; visibleCount?: number }>,
-  options: { style?: FadeStyle; storyFade?: boolean } = {},
+  options: { storyFade?: boolean } = {},
 ): Fade[] {
-  const style = options.style ?? DEFAULT_FADE_STYLE
   return segments.map((segment, i) =>
     fadeFor(segment, {
-      style,
       isFirst: i === 0,
-      isLast: i === segments.length - 1,
       story:
         options.storyFade && segment.type === 'chat'
           ? segment.visibleCount === 1
@@ -106,4 +85,9 @@ export function fadesForSegments(
           : undefined,
     }),
   )
+}
+
+/** A sensible fade for a clip the creator just switched on, from its length. */
+export function suggestedFadeS(durS: number): number {
+  return Math.round(Math.min(0.28, Math.max(0.1, durS * 0.1)) * 100) / 100
 }

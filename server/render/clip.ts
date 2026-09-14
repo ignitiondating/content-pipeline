@@ -114,7 +114,7 @@ async function renderOverlay(
   setProgress(0.35, 'encoding')
   const caps = await probeFfmpeg()
 
-  const fades = fadesForSegments(bg, { style: spec.transitions?.style })
+  const fades = fadesForSegments(bg)
   const single = bg.length === 1 && bg[0].type === 'broll'
     && bg[0].trimStartS === undefined && bg[0].trimEndS === undefined
     && !fades[0].inS && !fades[0].outS
@@ -300,11 +300,9 @@ async function renderCuts(
   const labels: string[] = []
   const beats: EditorManifest['beats'] = []
   let timelineStart = 0
-  // Every frame dips in and out of black, scaled to its own length — the cut
-  // between the footage and a screenshot is what read as a jump without it.
-  // The reference's longer story transition survives as one of these.
+  // A frame fades only if it asked to. The reference's story transition is
+  // the one exception, and it comes through the same helper.
   const fades = fadesForSegments(segments, {
-    style: spec.transitions?.style,
     storyFade: Boolean(spec.chat.storyReply) && spec.chat.messages.length > 1,
   })
   segments.forEach((segment, i) => {

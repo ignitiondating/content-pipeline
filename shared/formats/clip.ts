@@ -4,12 +4,11 @@ import { ChatSpecSchema } from './chat'
 export const BROLL_TAGS = ['basketball', '3d'] as const
 
 const DurS = z.number().min(0.2).max(20)
-/** Seconds of fade to black on each side of a frame. 0 = hard cut; absent = automatic. */
+/**
+ * Seconds of fade to black on each side of this frame. Absent is a hard cut:
+ * which beat needs softening is decided clip by clip, never video-wide.
+ */
 const FadeS = z.number().min(0).max(2).optional()
-
-/** How strong the automatic fades are, when a frame doesn't pin its own. */
-export const FADE_STYLES = ['off', 'soft', 'strong'] as const
-export type FadeStyle = (typeof FADE_STYLES)[number]
 
 // The frames of an edit, named once so both structures share them: the 'cuts'
 // timeline uses all four, the 'overlay' background track the visual two.
@@ -109,11 +108,6 @@ export const ClipSpecSchema = z.object({
    * from the conversation and one clip plays underneath, as it always has.
    */
   overlay: OverlayEditSchema.optional(),
-  /**
-   * How hard the automatic fade to black between frames is. A frame's own
-   * `fadeS` always wins; this only sets what the rest of them do.
-   */
-  transitions: z.object({ style: z.enum(FADE_STYLES).default('soft') }).optional(),
   /**
    * Per-beat duration overrides in seconds. Keys are stable across text
    * edits: chat holds by visibleCount, b-roll beats by burst ordinal.

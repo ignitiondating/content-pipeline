@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatSpec } from '@shared/formats/chat'
-import type { ClipSpec, FadeStyle } from '@shared/formats/clip'
+import type { ClipSpec } from '@shared/formats/clip'
 import { timelinePosition } from '@shared/playback'
 import {
   fitBackground,
@@ -10,7 +10,7 @@ import {
   type BackgroundSegment,
   type OverlayEdit,
 } from '@shared/timeline'
-import { DEFAULT_FADE_STYLE, fadesForSegments } from '@shared/transitions'
+import { fadesForSegments, suggestedFadeS } from '@shared/transitions'
 import { CLIP_LIMITS } from '@shared/formats/clip'
 import AiScript from './AiScript'
 import ConversationEditor from './ConversationEditor'
@@ -74,10 +74,7 @@ export default function OverlayTrack({
   // The one door: the frozen edit, or the structure derived from the chat.
   const edit = useMemo(() => resolveOverlayEdit(spec, brollPaths), [spec, brollPaths])
   const custom = Boolean(spec.overlay?.reveals.length)
-  const fades = useMemo(
-    () => fadesForSegments(edit.bg, { style: spec.transitions?.style }),
-    [edit.bg, spec.transitions?.style],
-  )
+  const fades = useMemo(() => fadesForSegments(edit.bg), [edit.bg])
 
   const revealDurations = useMemo(() => edit.reveals.map((r) => r.durS), [edit.reveals])
   const { time: clockTime, seek } = useTimelinePlayback(revealDurations, playing)
@@ -223,15 +220,6 @@ export default function OverlayTrack({
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button disabled={!history.current.length} onClick={() => { const previous = history.current.pop(); if (previous) updateSpec(previous); setPlaying(false) }} className="rounded-lg border border-neutral-700 px-3 py-2 text-xs disabled:opacity-30">Undo edit</button>
-        <label className="flex items-center gap-2 rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-400">Transitions
-          <select aria-label="Fade between frames" value={spec.transitions?.style ?? DEFAULT_FADE_STYLE}
-            onChange={(e) => onChange({ ...spec, transitions: { style: e.target.value as FadeStyle } })}
-            className="rounded bg-neutral-900 text-neutral-200">
-            <option value="off">Hard cuts</option>
-            <option value="soft">Fade to black</option>
-            <option value="strong">Long fades</option>
-          </select>
-        </label>
         {custom && <button onClick={() => { onChange({ ...spec, overlay: undefined }); setPlaying(false); setAtS(0) }} className="rounded-lg border border-neutral-700 px-3 py-2 text-xs">Back to automatic</button>}
       </div>
 
@@ -301,19 +289,25 @@ export default function OverlayTrack({
                     }} />
                 </div>
               )}
-              <div className="flex flex-wrap items-center gap-2">
-                <label htmlFor="cut-fade" className="text-xs text-neutral-400">Fade</label>
-                <input id="cut-fade" type="number" step="0.05" min="0" max="2"
-                  value={selectedCut.fadeS ?? fades[selected.index]?.outS ?? 0}
-                  onChange={(e) => {
-                    const seconds = Number(e.target.value)
-                    if (Number.isFinite(seconds) && seconds >= 0 && seconds <= 2) {
-                      editBackground(edit.bg.map((cut, i) => i === selected.index ? { ...cut, fadeS: seconds } : cut), selected.index)
-                    }
-                  }}
-                  className="w-20 rounded-lg border border-neutral-800 bg-neutral-900 px-2 py-1 text-sm tabular-nums" />
-                <span className="text-xs text-neutral-500">seconds</span>
-                {selectedCut.fadeS !== undefined && <button onClick={() => editBackground(edit.bg.map((cut, i) => i === selected.index ? { ...cut, fadeS: undefined } : cut), selected.index)} className="rounded-lg border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-500">Auto</button>}
+              <div className="flex flex-wrap items-center gap-2 border-t border-neutral-800 pt-3">
+                <label className="flex items-center gap-2 text-xs text-neutral-400">
+                  <input type="checkbox" aria-label="Fade this clip to black" checked={selectedCut.fadeS !== undefined}
+                    onChange={(e) => editBackground(edit.bg.map((cut, i) => i === selected.index
+                      ? { ...cut, fadeS: e.target.checked ? suggestedFadeS(cut.durS) : undefined } : cut), selected.index)} />
+                  Fade to black
+                </label>
+                {selectedCut.fadeS !== undefined && <>
+                  <input id="cut-fade" aria-label="Fade length in seconds" type="number" step="0.05" min="0.05" max="2"
+                    value={selectedCut.fadeS}
+                    onChange={(e) => {
+                      const seconds = Number(e.target.value)
+                      if (Number.isFinite(seconds) && seconds > 0 && seconds <= 2) {
+                        editBackground(edit.bg.map((cut, i) => i === selected.index ? { ...cut, fadeS: seconds } : cut), selected.index)
+                      }
+                    }}
+                    className="w-20 rounded-lg border border-neutral-800 bg-neutral-900 px-2 py-1 text-sm tabular-nums" />
+                  <span className="text-xs text-neutral-500">seconds</span>
+                </>}
               </div>
             </div>
           )}
