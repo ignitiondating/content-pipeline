@@ -29,12 +29,12 @@ export default function ConversationEditor({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2.5">
       {messages.map((message, i) => (
         <div
           key={i}
           onFocus={() => onFocusMessage?.(i)}
-          className={`flex items-center gap-2 rounded-lg p-1 ${
+          className={`flex items-center gap-2.5 rounded-xl px-1 py-0.5 ${
             highlight === i + 1 ? 'bg-wing-950/40 ring-1 ring-wing-500' : ''
           }`}
         >

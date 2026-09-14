@@ -14,7 +14,7 @@ export function useToast(): [string | null, (message: string) => void] {
 export default function Toast({ message }: { message: string | null }) {
   if (!message) return null
   return (
-    <div className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
+    <div className="pointer-events-none fixed bottom-6 left-1/2 z-[60] -translate-x-1/2">
       <div className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
         {message}
       </div>

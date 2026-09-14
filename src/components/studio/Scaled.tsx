@@ -7,7 +7,7 @@ export default function Scaled({ height, children }: { height: number; children:
   return (
     <div
       style={{ width: CHAT_CANVAS.width * scale, height, overflow: 'hidden' }}
-      className="rounded-xl border border-neutral-800 bg-black"
+      className="rounded-xl border border-white/10 bg-black shadow-lg"
     >
       <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>{children}</div>
     </div>

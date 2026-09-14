@@ -102,7 +102,7 @@ export default function AssetPicker({
             })}
             {tagged.length === 0 && (
               <p className="text-sm text-neutral-500">
-                No {tag} clips yet — upload some on the Assets page.
+                No {tag} clips yet — upload a video below.
               </p>
             )}
           </div>
