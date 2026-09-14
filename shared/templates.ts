@@ -32,7 +32,20 @@ export function remixClip(spec: ClipSpec, assets: { path: string; durationS?: nu
     const j = Math.floor(random() * (i + 1))
     ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
   }
-  if (spec.structure === 'overlay') return { ...spec, brollPaths: [shuffled[0].path] }
+  if (spec.structure === 'overlay') {
+    // Nothing frozen yet: the single background clip is still picked from
+    // brollPaths, so swapping that is the whole edit.
+    if (!spec.overlay?.bg.length) return { ...spec, brollPaths: [shuffled[0].path] }
+    let clip = 0
+    const bg = spec.overlay.bg.map((cut) => {
+      if (cut.type !== 'broll') return { ...cut }
+      const asset = shuffled[clip++ % shuffled.length]
+      const available = asset.durationS ?? cut.durS
+      const trimStartS = Math.floor(random() * Math.max(0, available - cut.durS) * 10) / 10
+      return { ...cut, path: asset.path, trimStartS, trimEndS: Math.min(available, trimStartS + cut.durS) }
+    })
+    return ClipSpecSchema.parse({ ...spec, overlay: { ...spec.overlay, bg } })
+  }
   let clip = 0
   const segments = resolveClipSegments(spec, assets.map((a) => a.path)).map((s) => {
     if (s.type !== 'broll') return { ...s }

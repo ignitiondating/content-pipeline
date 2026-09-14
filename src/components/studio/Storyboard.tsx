@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatSpec } from '@shared/formats/chat'
-import type { ClipSpec } from '@shared/formats/clip'
+import type { ClipSpec, FadeStyle } from '@shared/formats/clip'
 import {
   CUTS_TARGET_S,
   fitToTarget,
@@ -16,8 +16,9 @@ import AiScript from './AiScript'
 import StoryPicker from './StoryPicker'
 import AssetPicker from './AssetPicker'
 import TrimBar from './TrimBar'
-import EditTimeline from './EditTimeline'
+import EditTimeline, { type TimelineLane } from './EditTimeline'
 import MediaLibrary from './MediaLibrary'
+import { DEFAULT_FADE_STYLE, fadesForSegments } from '@shared/transitions'
 import { remixClip } from '@shared/templates'
 import Scaled from './Scaled'
 import { useTimelinePlayback } from '../../lib/useTimelinePlayback'
@@ -126,6 +127,44 @@ export default function Storyboard({
     target?.focus()
   }
 
+  // The same list the renderer builds its fade filters from.
+  const fades = useMemo(
+    () =>
+      fadesForSegments(segments, {
+        style: spec.transitions?.style,
+        storyFade: Boolean(spec.chat.storyReply) && spec.chat.messages.length > 1,
+      }),
+    [segments, spec.transitions?.style, spec.chat.storyReply, spec.chat.messages.length],
+  )
+
+  const label = (s: EditedSegment, i: number) =>
+    s.type === 'chat'
+      ? `Message ${s.visibleCount}`
+      : s.type === 'promo'
+        ? 'WingAI app'
+        : s.type === 'image'
+          ? 'Photo'
+          : i === 0
+            ? 'Intro clip'
+            : i === segments.length - 1
+              ? 'Closing clip'
+              : `Clip ${brollOrdinal(segments, i)}`
+
+  const lanes: TimelineLane[] = useMemo(() => [{
+    id: 'main', label: 'Video', clock: true, reorder: true, resize: true, trim: true, acceptsAsset: true,
+    blocks: segments.map((s, i) => ({
+      key: `${i}-${s.type}`,
+      label: label(s, i),
+      durS: s.durS,
+      tone: s.type,
+      fade: fades[i],
+      film: s.type === 'broll' && s.path
+        ? { path: s.path, fromS: s.trimStartS ?? 0,
+            keptS: s.trimStartS !== undefined && s.trimEndS !== undefined ? Math.max(0.1, s.trimEndS - s.trimStartS) : s.durS }
+        : undefined,
+    })),
+  }], [segments, fades])
+
   const durations = useMemo(() => segments.map((s) => s.durS), [segments])
   const { index: looped, offset: playbackOffset, time: playbackTime, seek: seekLoop } = useTimelinePlayback(durations, playing)
   const index = Math.min(playing ? looped : selected, segments.length - 1)
@@ -181,7 +220,7 @@ export default function Storyboard({
   }
 
   const setDuration = (at: number, seconds: number | null) => {
-    if (seconds !== null && (!Number.isFinite(seconds) || seconds < 0.4 || seconds > 15)) return
+    if (seconds !== null && (!Number.isFinite(seconds) || seconds < 0.4 || seconds > 20)) return
     if (custom) {
       // With a frozen edit the number on the frame is the duration; there is
       // no solver left to hand it back to.
@@ -227,19 +266,6 @@ export default function Storyboard({
     onChange({ ...spec, brollSlots: Object.keys(slots).length ? slots : undefined })
   }
 
-  const label = (s: EditedSegment, i: number) =>
-    s.type === 'chat'
-      ? `Message ${s.visibleCount}`
-      : s.type === 'promo'
-        ? 'WingAI app'
-        : s.type === 'image'
-          ? 'Photo'
-          : i === 0
-            ? 'Intro clip'
-            : i === segments.length - 1
-              ? 'Closing clip'
-              : `Clip ${brollOrdinal(segments, i)}`
-
   const offTarget = Math.abs(totalS - CUTS_TARGET_S) > 0.6
   const photos = assets.filter((a) => ['background', 'shot', 'promo'].includes(a.kind))
   const clips = assets.filter((a) => a.kind === 'broll')
@@ -276,13 +302,36 @@ export default function Storyboard({
         </div>
       </section>
       {editError && <p role="alert" className="mb-3 text-sm text-red-400">{editError}</p>}
-      <EditTimeline segments={segments} selected={index} currentTime={playheadTime} playing={playing} onTogglePlay={togglePlayback} onSelect={(at, offset) => { setPlaying(false); setSelected(at); if (segments[at]?.type === 'broll') setFootageSlot(at); setSeekOffset(offset) }} onChange={editSegments} onDropAsset={dropAsset} onEditStart={() => { history.current = [...history.current.slice(-39), spec]; editingGesture.current = true }} onEditEnd={() => { editingGesture.current = false }} />
+      <EditTimeline lanes={lanes} selected={{ laneId: 'main', index }} currentTime={playheadTime} playing={playing} onTogglePlay={togglePlayback}
+        onSelect={(_lane, at) => { setPlaying(false); setSelected(at); if (segments[at]?.type === 'broll') setFootageSlot(at); setSeekOffset(undefined) }}
+        onScrub={(at, offset) => { setSelected(at); if (segments[at]?.type === 'broll') setFootageSlot(at); setSeekOffset(offset); if (playing) seekLoop(at, offset) }}
+        onReorder={(_lane, from, to) => {
+          const next = [...segments]
+          const [moved] = next.splice(from, 1)
+          const at = Math.min(to, next.length)
+          next.splice(at, 0, moved)
+          editSegments(next, at)
+        }}
+        onResize={(_lane, at, durS) => editSegments(segments.map((s, i) => i === at ? { ...s, durS } : s), at)}
+        onTrim={(_lane, at, fromS, durS) => editSegments(segments.map((s, i) => i === at && s.type === 'broll'
+          ? { ...s, trimStartS: fromS, trimEndS: fromS + durS, durS } : s), at)}
+        onDropAsset={(_lane, path, at) => dropAsset(path, at)}
+        onEditStart={() => { history.current = [...history.current.slice(-39), spec]; editingGesture.current = true }} onEditEnd={() => { editingGesture.current = false }} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button disabled={!history.current.length} onClick={() => { const previous = history.current.pop(); if (previous) updateSpec(previous); setSelected(0); setPlaying(false); setSeekOffset(undefined) }} className="rounded-lg border border-neutral-700 px-3 py-2 text-xs disabled:opacity-30">Undo edit</button>
         <button onClick={() => {
           try { onChange(remixClip(spec, clips)); setPlaying(false); setSelected(0); setSeekOffset(undefined); setEditError('') }
           catch (e) { setEditError((e as Error).message) }
         }} className="rounded-lg border border-neutral-700 px-3 py-2 text-xs">Shuffle B-roll & pacing</button>
+        <label className="flex items-center gap-2 rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-400">Transitions
+          <select aria-label="Fade between frames" value={spec.transitions?.style ?? DEFAULT_FADE_STYLE}
+            onChange={(e) => onChange({ ...spec, transitions: { style: e.target.value as FadeStyle } })}
+            className="rounded bg-neutral-900 text-neutral-200">
+            <option value="off">Hard cuts</option>
+            <option value="soft">Fade to black</option>
+            <option value="strong">Long fades</option>
+          </select>
+        </label>
         <details className="min-w-0 flex-1"><summary className="cursor-pointer text-xs text-wing-400">Ask AI to adjust the edit</summary><div className="mt-2 flex flex-wrap gap-2"><input aria-label="AI edit direction" value={direction} onChange={(e) => setDirection(e.target.value)} className="min-w-0 flex-1 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm" /><button disabled={editBusy || !direction.trim()} onClick={autoEdit} className="rounded-lg bg-wing-500 px-3 py-2 text-sm disabled:opacity-50">{editBusy ? 'AI is editing…' : 'Apply AI edit'}</button></div></details>
       </div>
       <div className="grid items-start gap-5 md:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[200px_minmax(0,1.15fr)_minmax(260px,1fr)]">
@@ -300,6 +349,8 @@ export default function Storyboard({
             seekOffset={playing ? (index === selected ? seekOffset ?? 0 : 0) : seekOffset}
             playing={playing}
             activeIndex={index}
+            fades={fades}
+            offsetS={playing ? playbackOffset : seekOffset}
           />
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -481,7 +532,7 @@ export default function Storyboard({
                 type="number"
                 step="0.1"
                 min="0.4"
-                max="15"
+                max="20"
                 value={segment.durS}
                 onChange={(e) => setDuration(selected, Number(e.target.value))}
                 className="w-20 rounded-lg border border-neutral-800 bg-neutral-900 px-2 py-1 text-sm tabular-nums"
@@ -490,6 +541,29 @@ export default function Storyboard({
               {isPinned(selected) && (
                 <button
                   onClick={() => setDuration(selected, null)}
+                  className="rounded-lg border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-500"
+                >
+                  Auto
+                </button>
+              )}
+              <label htmlFor="selected-beat-fade" className="ml-2 text-xs text-neutral-400">Fade</label>
+              <input
+                id="selected-beat-fade"
+                type="number"
+                step="0.05"
+                min="0"
+                max="2"
+                value={segment.fadeS ?? fades[selected]?.outS ?? 0}
+                onChange={(e) => {
+                  const seconds = Number(e.target.value)
+                  if (Number.isFinite(seconds) && seconds >= 0 && seconds <= 2) replaceAt(selected, { fadeS: seconds })
+                }}
+                className="w-20 rounded-lg border border-neutral-800 bg-neutral-900 px-2 py-1 text-sm tabular-nums"
+              />
+              <span className="text-xs text-neutral-500">seconds</span>
+              {segment.fadeS !== undefined && (
+                <button
+                  onClick={() => replaceAt(selected, { fadeS: undefined })}
                   className="rounded-lg border border-neutral-700 px-2 py-1 text-xs hover:border-neutral-500"
                 >
                   Auto

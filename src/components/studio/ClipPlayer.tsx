@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { CHAT_CANVAS, type ChatSpec } from '@shared/formats/chat'
 import { promoContentFor, type EditedSegment } from '@shared/timeline'
+import { fadeOpacityAt, type Fade } from '@shared/transitions'
 import ChatScreen from '../chat/ChatScreen'
 import WingPromoShot from '../promo/WingPromoShot'
 import BrollPlaceholder from './BrollPlaceholder'
@@ -74,11 +75,60 @@ export function ClipFrame({
   isIntro,
   playing = true,
   seekOffset,
+  fade,
+  offsetS,
 }: {
   segment: EditedSegment
   chat: ChatSpec
   hook?: string
   /** Resolved URL of the clip or photo this frame plays. */
+  mediaUrl?: string
+  storyUrl?: string
+  playing?: boolean
+  seekOffset?: number
+  /** This frame's dip to black, from the same helper the renderer uses. */
+  fade?: Fade
+  /** How far into the frame the playhead is, for that dip. */
+  offsetS?: number
+  isIntro?: boolean
+}) {
+  // Only while the playhead has a position inside this frame: a paused frame
+  // with no scrub shows a still from the middle of the clip, not the dip.
+  const dim = fade && offsetS !== undefined ? fadeOpacityAt(fade, segment.durS, offsetS) : 0
+  return (
+    <div style={{ position: 'relative', width: CHAT_CANVAS.width, height: CHAT_CANVAS.height }}>
+      <FrameContent
+        segment={segment}
+        chat={chat}
+        hook={hook}
+        mediaUrl={mediaUrl}
+        storyUrl={storyUrl}
+        isIntro={isIntro}
+        playing={playing}
+        seekOffset={seekOffset}
+      />
+      {dim > 0 && (
+        <div
+          style={{ position: 'absolute', inset: 0, background: '#000', opacity: dim, pointerEvents: 'none' }}
+        />
+      )}
+    </div>
+  )
+}
+
+function FrameContent({
+  segment,
+  chat,
+  hook,
+  mediaUrl,
+  storyUrl,
+  isIntro,
+  playing = true,
+  seekOffset,
+}: {
+  segment: EditedSegment
+  chat: ChatSpec
+  hook?: string
   mediaUrl?: string
   storyUrl?: string
   playing?: boolean
@@ -143,6 +193,8 @@ export default function ClipPlayer({
   activeIndex,
   onIndexChange,
   seekOffset,
+  fades,
+  offsetS,
 }: {
   segments: EditedSegment[]
   chat: ChatSpec
@@ -154,6 +206,9 @@ export default function ClipPlayer({
   playing?: boolean
   activeIndex?: number
   seekOffset?: number
+  /** One fade per frame, so the preview dips exactly where the render does. */
+  fades?: Fade[]
+  offsetS?: number
   onIndexChange?: (index: number) => void
 }) {
   const durations = useMemo(() => segments.map((s) => s.durS), [segments])
@@ -178,6 +233,8 @@ export default function ClipPlayer({
         mediaUrl={mediaUrls[index] || undefined}
         storyUrl={storyUrl}
         isIntro={index === 0}
+        fade={fades?.[index]}
+        offsetS={offsetS}
       />
     </Scaled>
   )

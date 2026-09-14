@@ -5,7 +5,13 @@ import {
   fitToTarget,
   materializeSegments,
   reconcileSegments,
+  fitBackground,
+  overlayDurationS,
+  reconcileReveals,
+  resolveBrollForBursts,
   resolveClipSegments,
+  resolveOverlayEdit,
+  retimeBackground,
   segmentsDurationS,
 } from './timeline'
 import { CLIP_LIMITS } from './formats/clip'
@@ -199,5 +205,186 @@ describe('buildCutsTimeline', () => {
     )
     expect(buildCutsTimeline(long).durationS).toBeLessThanOrEqual(CLIP_LIMITS.maxDurationS + 0.15)
     expect(buildCutsTimeline(spec).durationS).toBeGreaterThanOrEqual(CLIP_LIMITS.minDurationS - 0.15)
+  })
+})
+
+describe('resolveBrollForBursts', () => {
+  const loose = ['library/broll/basketball/nba-01.mp4', 'library/broll/basketball/nba-02.mp4', 'library/broll/basketball/nba-03.mp4']
+  const filed = [
+    'library/broll/basketball/beats/play-a.mp4',
+    'library/broll/basketball/beats/play-b.mp4',
+    'library/broll/basketball/intro/tip-off.mp4',
+    'library/broll/basketball/outro/buzzer.mp4',
+  ]
+  const names = (paths: string[]) => paths.map((p) => p.split('/').pop())
+
+  it('keeps filename order and closes on the last file when nothing is filed by role', () => {
+    expect(names(resolveBrollForBursts(4, loose))).toEqual([
+      'nba-01.mp4', 'nba-02.mp4', 'nba-03.mp4', 'nba-03.mp4',
+    ])
+  })
+
+  it('opens from intro, rotates the between-message plays, and closes from outro', () => {
+    expect(names(resolveBrollForBursts(4, filed))).toEqual([
+      'tip-off.mp4', 'play-a.mp4', 'play-b.mp4', 'buzzer.mp4',
+    ])
+  })
+
+  it('never spends an opening or closing clip between the messages', () => {
+    const between = resolveBrollForBursts(6, filed).slice(1, -1)
+    expect(between.some((p) => p.includes('/intro/') || p.includes('/outro/'))).toBe(false)
+  })
+
+  it('falls back to the between-message clips when a role has no footage', () => {
+    const onlyBeats = filed.filter((p) => p.includes('/beats/'))
+    expect(names(resolveBrollForBursts(3, onlyBeats))).toEqual([
+      'play-a.mp4', 'play-b.mp4', 'play-b.mp4',
+    ])
+  })
+
+  it('lets a pinned slot win over the role', () => {
+    expect(resolveBrollForBursts(3, filed, { '0': 'library/broll/3d/loop.mp4' })[0]).toBe(
+      'library/broll/3d/loop.mp4',
+    )
+  })
+
+  it('has no clip to give when the library is empty', () => {
+    expect(resolveBrollForBursts(2, [])).toEqual(['', ''])
+  })
+})
+
+describe('overlay edit', () => {
+  const spec = chat([
+    ['them', 'so what are we'],
+    ['me', 'the reason your phone battery dies'],
+    ['them', 'omg'],
+  ])
+  const clips = ['library/broll/basketball/nba-01.mp4', 'library/broll/basketball/nba-02.mp4']
+  it('reproduces the derived timeline when nothing has been edited', () => {
+    const resolved = resolveOverlayEdit({ chat: spec }, clips)
+    expect(resolved.states).toEqual(buildClipTimeline(spec).states)
+    expect(resolved.durationS).toBeCloseTo(buildClipTimeline(spec).durationS, 3)
+  })
+
+  it('backs an untouched clip with one piece of footage covering the whole runtime', () => {
+    const resolved = resolveOverlayEdit({ chat: spec }, clips)
+    expect(resolved.bg).toHaveLength(1)
+    expect(resolved.bg[0].durS).toBeCloseTo(resolved.durationS, 3)
+    expect(resolved.bg[0].path).toBe(clips[0])
+  })
+
+  it('keeps a frozen reveal track and covers it with the frozen footage', () => {
+    const overlay = {
+      bg: [
+        { type: 'broll' as const, path: clips[0], durS: 4 },
+        { type: 'broll' as const, path: clips[1], durS: 4 },
+      ],
+      reveals: [
+        { visibleCount: 0, typing: false, durS: 0.5 },
+        { visibleCount: 0, typing: true, durS: 1.1 },
+        { visibleCount: 1, typing: false, durS: 3 },
+        { visibleCount: 2, typing: false, durS: 3 },
+        { visibleCount: 3, typing: false, durS: 4 },
+      ],
+    }
+    const resolved = resolveOverlayEdit({ chat: spec, overlay }, clips)
+    expect(resolved.reveals).toBe(overlay.reveals)
+    expect(resolved.durationS).toBeCloseTo(11.6, 3)
+    expect(resolved.bg.reduce((sum, b) => sum + b.durS, 0)).toBeCloseTo(11.6, 3)
+    expect(resolved.states.at(-1)?.tEndS).toBeCloseTo(11.6, 3)
+  })
+
+  it('never leaves the footage short when a message is retimed', () => {
+    const overlay = {
+      bg: [{ type: 'broll' as const, path: clips[0], durS: 8 }],
+      reveals: [
+        { visibleCount: 0, typing: false, durS: 0.5 },
+        { visibleCount: 1, typing: false, durS: 12 },
+      ],
+    }
+    const resolved = resolveOverlayEdit({ chat: chat([['me', 'hey']]), overlay }, clips)
+    expect(resolved.bg.reduce((sum, b) => sum + b.durS, 0)).toBeCloseTo(resolved.durationS, 3)
+  })
+
+  it('states run back to back and finish on the runtime', () => {
+    const { states, durationS } = resolveOverlayEdit({ chat: spec }, clips)
+    states.forEach((state, i) => {
+      if (i > 0) expect(state.tStartS).toBeCloseTo(states[i - 1].tEndS, 3)
+    })
+    expect(states.at(-1)?.tEndS).toBeCloseTo(durationS, 3)
+  })
+})
+
+describe('fitBackground', () => {
+  const clip = (durS: number) => ({ type: 'broll' as const, path: 'a.mp4', durS })
+
+  it('covers the runtime exactly, scaling every clip', () => {
+    const fitted = fitBackground([clip(4), clip(6)], 20)
+    expect(fitted.reduce((sum, b) => sum + b.durS, 0)).toBeCloseTo(20, 3)
+    expect(fitted[0].durS).toBeCloseTo(8, 3)
+  })
+
+  it('keeps the cuts when it has to squeeze', () => {
+    const fitted = fitBackground([clip(10), clip(10), clip(10)], 9)
+    expect(fitted).toHaveLength(3)
+    expect(fitted.reduce((sum, b) => sum + b.durS, 0)).toBeCloseTo(9, 3)
+  })
+})
+
+describe('reconcileReveals', () => {
+  /** The reveal track as a readable shape: t3 = typing before message 3. */
+  const shape = (reveals: { visibleCount: number; typing: boolean }[]) =>
+    reveals.map((r) => (r.typing ? `t${r.visibleCount + 1}` : `m${r.visibleCount}`)).join('-')
+
+  it('adds a reveal, with its typing beat, for a message that gained none', () => {
+    const conversation = chat([['me', 'hey'], ['them', 'hi']])
+    const reveals = reconcileReveals(
+      [{ visibleCount: 0, typing: false, durS: 0.5 }, { visibleCount: 1, typing: false, durS: 2 }],
+      conversation,
+    )
+    expect(shape(reveals)).toBe('m0-m1-t2-m2')
+  })
+
+  it('drops reveals whose message is gone and keeps one lead-in', () => {
+    const reveals = reconcileReveals(
+      [
+        { visibleCount: 0, typing: false, durS: 0.5 },
+        { visibleCount: 1, typing: false, durS: 2 },
+        { visibleCount: 2, typing: false, durS: 2 },
+        { visibleCount: 3, typing: false, durS: 2 },
+      ],
+      chat([['me', 'only one left']]),
+    )
+    expect(shape(reveals)).toBe('m0-m1')
+  })
+
+  it('leaves a complete track alone', () => {
+    const conversation = chat([['them', 'hey'], ['me', 'hey yourself']])
+    const reveals = resolveOverlayEdit({ chat: conversation }, []).reveals
+    expect(shape(reconcileReveals(reveals, conversation))).toBe(shape(reveals))
+  })
+})
+
+describe('retimeBackground', () => {
+  const clip = (path: string, durS: number) => ({ type: 'broll' as const, path, durS })
+
+  it('takes the time from the next clip so the runtime holds', () => {
+    const bg = retimeBackground([clip('a', 5), clip('b', 5)], 0, 7)
+    expect(bg.map((b) => b.durS)).toEqual([7, 3])
+  })
+
+  it('takes from the previous clip when retiming the last one', () => {
+    const bg = retimeBackground([clip('a', 5), clip('b', 5)], 1, 8)
+    expect(bg.map((b) => b.durS)).toEqual([2, 8])
+  })
+
+  it('never shrinks a neighbour below the floor', () => {
+    const bg = retimeBackground([clip('a', 5), clip('b', 1)], 0, 20)
+    expect(bg.map((b) => b.durS)).toEqual([5.6, 0.4])
+  })
+
+  it('leaves a lone clip alone: it has to cover the whole video', () => {
+    const bg = [clip('a', 12)]
+    expect(retimeBackground(bg, 0, 4)).toBe(bg)
   })
 })

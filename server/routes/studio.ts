@@ -8,6 +8,7 @@ import { reconcileSegments, resolveClipSegments } from '../../shared/timeline'
 import { createBatch, createDraft, getSetting, setSetting } from '../db/repo'
 import { getDb, newId } from '../db/index'
 import { listAssets } from '../assets/catalog'
+import { roleOfPath } from '../../shared/broll'
 import { generateStructured } from '../generate/client'
 
 export const studio = new Hono()
@@ -33,8 +34,10 @@ studio.post('/templates/:id/start', (c) => {
   // Bind the available footage when starting, so preview and render use the
   // same clips even if the library changes before this draft is exported.
   const paths = listAssets().filter((a) => a.kind === 'broll' && !a.missing && a.tag === template.spec.brollTag).map((a) => a.path).slice(0, 20)
+  // Both structures bind the whole library: the overlay editor can cut
+  // between clips now, and an unedited one still plays the first.
   const spec = !template.spec.brollPaths?.length && paths.length
-    ? { ...template.spec, brollPaths: template.spec.structure === 'overlay' ? paths.slice(0, 1) : paths }
+    ? { ...template.spec, brollPaths: paths }
     : template.spec
   return c.json({ draft: createDraft({ batchId: null, format: 'clip', spec, meta: template.meta }) })
 })
@@ -67,8 +70,8 @@ studio.post('/ai-edit', async (c) => {
   const schema = z.object({ segments: ClipSpecSchema.shape.segments.unwrap().min(1) })
   const result = await generateStructured({
     schema, toolName: 'edit_timeline',
-    system: 'You are a short-form video editor. Adjust pacing and select relevant B-roll from the supplied catalog. Preserve the script, all message reveals in their original order, and image/product beats. Only use supplied media paths. Use trims within source duration; each beat is 0.4–20 seconds. Return the complete timeline. Aim for 15–40 seconds unless requested otherwise.',
-    user: JSON.stringify({ instruction, chat: spec.chat, current, assets: assets.map((a) => ({ path: a.path, durationS: a.durationS })) }),
+    system: 'You are a short-form video editor. Adjust pacing and select relevant B-roll from the supplied catalog. Preserve the script, all message reveals in their original order, and image/product beats. Only use supplied media paths. Use trims within source duration; each beat is 0.4–20 seconds. Return the complete timeline. Aim for 15–40 seconds unless requested otherwise. Every clip carries a role: use an intro clip only for the opening beat, an outro clip only for the closing beat, and beats clips between the messages. Match the play to the message it follows, using the filename as the description of what happens in it, and avoid repeating a clip back to back.',
+    user: JSON.stringify({ instruction, chat: spec.chat, current, assets: assets.map((a) => ({ path: a.path, durationS: a.durationS, role: roleOfPath(a.path) })) }),
   })
   const allowed = new Set([...assets.map((a) => a.path), ...current.flatMap((s) => s.type === 'image' ? [s.path] : [])])
   for (const segment of result.segments) {

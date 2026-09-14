@@ -6,11 +6,9 @@ import { buildClipTimeline, resolveClipSegments } from '@shared/timeline'
 import type { ClipSpec } from '@shared/formats/clip'
 import { carouselSlideCount, type CarouselSpec } from '@shared/formats/carousel'
 import DraftPreview from '../components/studio/DraftPreview'
-import OverlayPreview from '../components/studio/OverlayPreview'
+import OverlayTrack from '../components/studio/OverlayTrack'
 import Storyboard from '../components/studio/Storyboard'
 import VideoVersions from '../components/studio/VideoVersions'
-import ConversationEditor from '../components/studio/ConversationEditor'
-import AiScript from '../components/studio/AiScript'
 import { api } from '../lib/api'
 
 export default function DraftEditor() {
@@ -141,17 +139,13 @@ export default function DraftEditor() {
                 onChange={changeForm}
               />
             ) : (
-              <>
-              <label className="mb-4 block text-sm">On-screen hook<input value={(formSpec as ClipSpec).hook} maxLength={80} onChange={(e) => changeForm({ ...formSpec as ClipSpec, hook: e.target.value })} className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2" /></label>
-              <AiScript key={draft.id} hook={(formSpec as ClipSpec).hook} chat={(formSpec as ClipSpec).chat} onChange={(chat) => changeForm({ ...formSpec as ClipSpec, chat })} />
-              <ConversationEditor
-                messages={(formSpec as ClipSpec).chat.messages}
-                onChange={(messages) => {
-                  const spec = formSpec as ClipSpec
-                  changeForm({ ...spec, chat: { ...spec.chat, messages } })
-                }}
+              <OverlayTrack
+                onReadyChange={setEditorReady}
+                onRender={sendToRender}
+                renderBusy={renderBusy}
+                spec={formSpec as ClipSpec}
+                onChange={changeForm}
               />
-              </>
             )}
           </div>
         )}
@@ -240,9 +234,9 @@ export default function DraftEditor() {
         </div>
       </div>
 
-      {!(draft.format === 'clip' && (effectiveSpec as ClipSpec).structure === 'cuts') && <div className="w-full shrink-0 lg:w-[360px]">
+      {draft.format !== 'clip' && <div className="w-full shrink-0 lg:w-[360px]">
         <div className="flex flex-col items-center lg:sticky lg:top-6 lg:items-stretch">
-          {draft.format === 'clip' ? <OverlayPreview key={draft.id} spec={effectiveSpec as ClipSpec} height={500} /> : <DraftPreview
+          {<DraftPreview
             draft={{ format: draft.format, spec: previewSpec as Draft['spec'] }}
             height={560}
             slideIndex={slideIndex}
@@ -266,7 +260,7 @@ export default function DraftEditor() {
               ))}
             </div>
           )}
-          {timeline && draft.format !== 'clip' && (
+          {timeline && (
             <div className="mt-3">
               <input
                 type="range"

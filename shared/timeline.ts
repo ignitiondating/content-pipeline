@@ -1,5 +1,7 @@
+import type { z } from 'zod'
 import type { ChatSpec } from './formats/chat'
-import { CLIP_LIMITS } from './formats/clip'
+import { byRole } from './broll'
+import { CLIP_LIMITS, type EditedSegmentSchema, type OverlayRevealSchema } from './formats/clip'
 
 /**
  * One visual state of the chat card during the clip. The renderer captures a
@@ -83,11 +85,7 @@ export interface CutsTimeline {
 }
 
 /** A frame of the frozen edit: what plays, for how long, from where. */
-export type EditedSegment =
-  | { type: 'chat'; visibleCount: number; durS: number }
-  | { type: 'promo'; durS: number }
-  | { type: 'broll'; path: string; durS: number; trimStartS?: number; trimEndS?: number }
-  | { type: 'image'; path: string; durS: number }
+export type EditedSegment = z.infer<typeof EditedSegmentSchema>
 
 /**
  * Freezes the derived structure into an explicit list, resolving which clip
@@ -168,8 +166,12 @@ export function resolveClipSegments(
 /**
  * Which clip plays on each b-roll beat, shared by the renderer and every
  * preview so the storyboard shows exactly what will be rendered: a slot
- * replacement wins, then the ordered list (last one closes the video),
- * wrapping when there are more bursts than clips.
+ * replacement wins, then the role the clip was filed under — the opening
+ * shot comes from `intro/`, the closer from `outro/`, and the beats between
+ * messages rotate through `beats/` so consecutive plays differ.
+ *
+ * With nothing filed into roles every clip is a 'beats' clip, which lands on
+ * the original rule: filename order, the last file closing the video.
  */
 export function resolveBrollForBursts(
   burstCount: number,
@@ -177,13 +179,158 @@ export function resolveBrollForBursts(
   slots?: Record<string, string>,
 ): string[] {
   const n = ordered.length
+  const pools = byRole(ordered)
+  const intro = pools.intro[0]
+  const outro = pools.outro[0]
+  const between = pools.beats.length ? pools.beats : ordered
   return Array.from({ length: burstCount }, (_, k) => {
     const pinned = slots?.[String(k)]
     if (pinned) return pinned
     if (n === 0) return ''
-    if (burstCount > 1 && k === burstCount - 1) return ordered[n - 1]
-    return ordered[k % n]
+    if (k === 0 && intro) return intro
+    if (burstCount > 1 && k === burstCount - 1) return outro ?? ordered[n - 1]
+    // The opening shot came out of its own pool, so the rotation between the
+    // messages starts at the first clip rather than skipping it.
+    const offset = intro ? k - 1 : k
+    return between[offset % between.length]
   })
+}
+
+// ---- the 'overlay' structure: a card floating over continuous footage ----
+//
+// Two parallel tracks, unlike the single lane of 'cuts'. The reveal track owns
+// the runtime — the conversation is the content — and the footage underneath is
+// always normalized to cover exactly that, so retiming a message can never
+// leave the background short.
+
+export type BackgroundSegment = Extract<EditedSegment, { type: 'broll' } | { type: 'image' }>
+export type OverlayReveal = z.infer<typeof OverlayRevealSchema>
+export interface OverlayEdit {
+  bg: BackgroundSegment[]
+  reveals: OverlayReveal[]
+}
+export interface ResolvedOverlay extends OverlayEdit {
+  /** Absolute windows for the card captures and the FFmpeg overlay filters. */
+  states: TimelineState[]
+  durationS: number
+}
+
+export const overlayDurationS = (reveals: OverlayReveal[]): number =>
+  round(reveals.reduce((sum, r) => sum + r.durS, 0))
+
+/** Turns the reveal track into the absolute windows everything else reads. */
+export function revealStates(reveals: OverlayReveal[]): TimelineState[] {
+  let t = 0
+  return reveals.map((reveal) => {
+    const state = {
+      visibleCount: reveal.visibleCount,
+      typing: reveal.typing,
+      tStartS: round(t),
+      tEndS: round(t + reveal.durS),
+    }
+    t += reveal.durS
+    return state
+  })
+}
+
+/**
+ * Stretches or squeezes the footage track to cover the runtime exactly. The
+ * rounding remainder lands on the longest clip, which has the most room to
+ * absorb it without visibly changing pace.
+ */
+export function fitBackground(bg: BackgroundSegment[], targetS: number): BackgroundSegment[] {
+  const total = bg.reduce((sum, b) => sum + b.durS, 0)
+  if (!bg.length || total <= 0 || targetS <= 0) return bg
+  const scale = targetS / total
+  const out = bg.map((b) => ({ ...b, durS: round(Math.max(0.2, b.durS * scale)) }))
+  const longest = out.reduce((best, b, i) => (b.durS > out[best].durS ? i : best), 0)
+  const drift = round(targetS - out.reduce((sum, b) => sum + b.durS, 0))
+  out[longest] = { ...out[longest], durS: round(Math.max(0.2, out[longest].durS + drift)) }
+  return out
+}
+
+/**
+ * Freezes the derived overlay into explicit tracks — called the first time the
+ * operator cuts, trims or retimes something.
+ */
+export function materializeOverlay(
+  chat: ChatSpec,
+  orderedBrollPaths: string[],
+): OverlayEdit {
+  const timeline = buildClipTimeline(chat)
+  return {
+    // One clip for the whole runtime: what the renderer has always done.
+    bg: [{ type: 'broll', path: orderedBrollPaths[0] ?? '', durS: timeline.durationS }],
+    reveals: timeline.states.map((state) => ({
+      visibleCount: state.visibleCount,
+      typing: state.typing,
+      durS: round(state.tEndS - state.tStartS),
+    })),
+  }
+}
+
+/** The one door for 'overlay', mirroring resolveClipSegments for 'cuts'. */
+export function resolveOverlayEdit(
+  spec: { chat: ChatSpec; overlay?: OverlayEdit },
+  orderedBrollPaths: string[],
+): ResolvedOverlay {
+  const edit = spec.overlay?.reveals.length
+    ? spec.overlay
+    : materializeOverlay(spec.chat, orderedBrollPaths)
+  const durationS = overlayDurationS(edit.reveals)
+  return {
+    bg: fitBackground(edit.bg, durationS),
+    reveals: edit.reveals,
+    states: revealStates(edit.reveals),
+    durationS,
+  }
+}
+
+/**
+ * Retimes one background cut by borrowing from its neighbour, so the footage
+ * still covers the runtime: changing how long a clip is on screen is a
+ * footage decision and must never silently retime the conversation.
+ */
+export function retimeBackground(
+  bg: BackgroundSegment[],
+  index: number,
+  durS: number,
+): BackgroundSegment[] {
+  if (bg.length < 2 || !bg[index]) return bg
+  const neighbour = index === bg.length - 1 ? index - 1 : index + 1
+  const wanted = durS - bg[index].durS
+  // The neighbour can only give what it can spare above the 0.4s floor.
+  const applied = round(Math.max(-(bg[index].durS - 0.4), Math.min(wanted, bg[neighbour].durS - 0.4)))
+  if (applied === 0) return bg
+  return bg.map((cut, i) =>
+    i === index
+      ? { ...cut, durS: round(cut.durS + applied) }
+      : i === neighbour
+        ? { ...cut, durS: round(cut.durS - applied) }
+        : cut,
+  )
+}
+
+/**
+ * The reveal-track counterpart of reconcileSegments: editing the script can't
+ * orphan a frozen overlay. Unlike chat frames, reveals legitimately repeat a
+ * visibleCount (the typing beat precedes the message it belongs to).
+ */
+export function reconcileReveals(reveals: OverlayReveal[], chat: ChatSpec): OverlayReveal[] {
+  const count = chat.messages.length
+  const leadIn = reveals.find((r) => r.visibleCount === 0 && !r.typing)
+  const kept = reveals.filter((r) => r.visibleCount <= count && !(r.visibleCount === 0 && !r.typing))
+  const covered = new Set(kept.filter((r) => !r.typing).map((r) => r.visibleCount))
+  const out: OverlayReveal[] = [
+    { visibleCount: 0, typing: false, durS: leadIn?.durS ?? LEAD_IN_S },
+    ...kept,
+  ]
+  for (let n = 1; n <= count; n++) {
+    if (covered.has(n)) continue
+    if (chat.messages[n - 1].from === 'them') out.push({ visibleCount: n - 1, typing: true, durS: TYPING_S })
+    out.push({ visibleCount: n, typing: false, durS: 2.2 })
+  }
+  return out
 }
 
 /** Burst ordinal of a b-roll segment (0 = intro), or -1 for other types. */

@@ -4,6 +4,7 @@ import type { Draft } from '@shared/formats/draft'
 import type { TimelineState } from '@shared/timeline'
 import type { Examples } from '@shared/examples'
 import type { ChatSpec } from '@shared/formats/chat'
+import type { BrollRole } from '@shared/broll'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -100,11 +101,12 @@ export const api = {
   markPosted: (draftId: string) =>
     request<{ draft: Draft }>(`/api/exports/${draftId}/posted`, { method: 'POST' }),
   assets: () => request<{ assets: AssetItem[] }>('/api/assets'),
-  uploadAsset: (file: File, kind: 'background' | 'music' | 'broll', tag?: 'basketball' | '3d') => {
+  uploadAsset: (file: File, kind: 'background' | 'music' | 'broll', tag?: 'basketball' | '3d', role?: BrollRole) => {
     const form = new FormData()
     form.append('file', file)
     form.append('kind', kind)
     if (tag) form.append('tag', tag)
+    if (role) form.append('role', role)
     return request<{ asset: AssetItem }>('/api/assets/upload', { method: 'POST', body: form })
   },
   createPromoShot: (body: { imagePath?: string; bubbleMe: string; bubbleThem: string; suggestion: string }) =>

@@ -6,14 +6,12 @@ import type { CarouselSpec } from '@shared/formats/carousel'
 import type { SlideshowSpec } from '@shared/formats/slideshow'
 import { DEFAULT_EXAMPLES, type Examples } from '@shared/examples'
 import DraftPreview from '../components/studio/DraftPreview'
-import OverlayPreview from '../components/studio/OverlayPreview'
+import OverlayTrack from '../components/studio/OverlayTrack'
 import Storyboard from '../components/studio/Storyboard'
 import BatchReview from '../components/studio/BatchReview'
 import VideoVersions from '../components/studio/VideoVersions'
 import { STARTER_TEMPLATES, type VideoTemplate } from '@shared/templates'
 import ConversationEditor from '../components/studio/ConversationEditor'
-import AiScript from '../components/studio/AiScript'
-import AssetPicker from '../components/studio/AssetPicker'
 import Scaled from '../components/studio/Scaled'
 import Toast, { useToast } from '../components/studio/Toast'
 import ChatScreen from '../components/chat/ChatScreen'
@@ -324,45 +322,21 @@ export default function Create() {
           <div className="mb-2 flex flex-wrap items-center justify-between gap-3"><span className="text-sm text-neutral-400">{templates.find((t) => t.id === templateId)?.name ?? formatCard.title} · edit everything below</span><button disabled={busy} onClick={async () => { if (await saveCurrent()) setStep(0) }} className="text-sm text-wing-400">Choose another format</button></div>
 
           {drafts.length > 1 && <div className="mb-5 flex items-center gap-2 overflow-x-auto pb-1"><span className="shrink-0 text-xs text-neutral-500">This batch</span>{drafts.map((draft, i) => <button key={draft.id} disabled={busy} onClick={async () => { if (draft.id !== chosen?.id && await saveCurrent()) await choose(draft) }} className={`shrink-0 rounded-lg border px-3 py-2 text-sm ${draft.id === chosen?.id ? 'border-wing-500 bg-wing-950/30' : 'border-neutral-700'}`}>Version {i + 1}</button>)}</div>}
-          {format === 'clip' && (edited as ClipSpec).structure === 'cuts' ? (
-            <Storyboard key={chosen?.id} onReadyChange={setEditorReady} onRender={renderFinal} renderBusy={busy} spec={edited as ClipSpec} onChange={(spec) => { setEdited(spec); setSaveStatus('Unsaved changes') }} />
+          {/* Both video formats get the same timeline editor. */}
+          {format === 'clip' ? (
+            (edited as ClipSpec).structure === 'cuts'
+              ? <Storyboard key={chosen?.id} onReadyChange={setEditorReady} onRender={renderFinal} renderBusy={busy} spec={edited as ClipSpec} onChange={(spec) => { setEdited(spec); setSaveStatus('Unsaved changes') }} />
+              : <OverlayTrack key={chosen?.id} onReadyChange={setEditorReady} onRender={renderFinal} renderBusy={busy} spec={edited as ClipSpec} onChange={(spec) => { setEdited(spec); setSaveStatus('Unsaved changes') }} />
           ) : (
             <div className="grid gap-8 lg:grid-cols-[340px_minmax(0,1fr)]">
               <div className="flex justify-center lg:block">
-                {format === 'clip' ? <OverlayPreview key={chosen?.id} spec={edited as ClipSpec} /> : <DraftPreview
+                <DraftPreview
                   draft={{ format: chosen!.format, spec: edited }}
                   height={440}
                   slideIndex={0}
-                />}
+                />
               </div>
               <div className="min-w-0">
-                {format === 'clip' && (
-                  <>
-                    <label className="mb-4 block text-sm">On-screen hook<input value={(edited as ClipSpec).hook} maxLength={80} onChange={(e) => { setEdited({ ...edited as ClipSpec, hook: e.target.value }); setSaveStatus('Unsaved changes') }} className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2" /></label>
-                    <AiScript key={chosen?.id} hook={(edited as ClipSpec).hook} chat={(edited as ClipSpec).chat} onChange={(chat) => { setEdited({ ...edited as ClipSpec, chat }); setSaveStatus('Unsaved changes') }} />
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                      Conversation
-                    </div>
-                    <ConversationEditor
-                      messages={(edited as ClipSpec).chat.messages}
-                      onChange={(messages) => {
-                        const spec = edited as ClipSpec
-                        setEdited({ ...spec, chat: { ...spec.chat, messages } })
-                      }}
-                    />
-                    <div className="mt-5">
-                      <AssetPicker
-                        tag={(edited as ClipSpec).brollTag}
-                        selected={(edited as ClipSpec).brollPaths ?? []}
-                        onChange={(paths) => {
-                          const spec = edited as ClipSpec
-                          setEdited({ ...spec, brollPaths: paths.length ? paths : undefined })
-                        }}
-                      />
-                    </div>
-                  </>
-                )}
-
                 {format === 'carousel' && (edited as CarouselSpec).chat && (
                   <>
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
@@ -456,7 +430,7 @@ export default function Create() {
           {format === 'clip' && chosen && <VideoVersions spec={edited as ClipSpec} meta={chosen.meta} beforeCreate={saveCurrent} onVersions={(versions) => { setDrafts(versions); setStep(2); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />}
           <div className="sticky bottom-0 z-10 mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-700 bg-neutral-950/95 p-3 shadow-xl backdrop-blur">
             <div className="flex items-center gap-3"><button disabled={busy} onClick={saveCurrent} className="rounded-lg border border-neutral-700 px-3 py-2 text-sm disabled:opacity-50">Save draft</button><span role="status" className="text-xs text-neutral-400">{saveStatus}</span></div>
-            <div className="flex gap-2"><button disabled={busy} onClick={async () => { if (await saveCurrent()) setStep(2) }} className="rounded-lg border border-neutral-700 px-3 py-2 text-sm">Review batch</button><button onClick={renderFinal} disabled={busy || (format === 'clip' && (edited as ClipSpec).structure === 'cuts' && !editorReady)} className="rounded-lg bg-wing-500 px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50">{busy ? 'Saving…' : format === 'clip' && (edited as ClipSpec).structure === 'cuts' && !editorReady ? 'Complete missing items to render' : 'Render this version →'}</button></div>
+            <div className="flex gap-2"><button disabled={busy} onClick={async () => { if (await saveCurrent()) setStep(2) }} className="rounded-lg border border-neutral-700 px-3 py-2 text-sm">Review batch</button><button onClick={renderFinal} disabled={busy || (format === 'clip' && !editorReady)} className="rounded-lg bg-wing-500 px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50">{busy ? 'Saving…' : format === 'clip' && !editorReady ? 'Complete missing items to render' : 'Render this version →'}</button></div>
           </div>
         </div>
       )}

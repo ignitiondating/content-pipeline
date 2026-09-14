@@ -9,7 +9,7 @@ export interface EditorManifest {
   hook: string
   hookEndS: number
   musicPath?: string
-  beats: { file: string; source: 'library' | 'render'; startS: number; durS: number; trimStartS?: number; trimEndS?: number; layer?: string }[]
+  beats: { file: string; source: 'library' | 'render'; startS: number; durS: number; trimStartS?: number; trimEndS?: number; layer?: string; fadeInS?: number; fadeOutS?: number }[]
 }
 
 /** Called after rendering, so the handoff uses the same captured screens and resolved media. */
@@ -34,9 +34,9 @@ export function buildEditorBundle(workdir: string): string | null {
   const hookFile = add('render', 'hook.png')
   const portable = { ...manifest, musicPath: undefined, musicFile, hookFile, beats: beats.map(({ source, ...beat }) => beat) }
   writeFileSync(path.join(workdir, 'timeline.json'), JSON.stringify(portable, null, 2))
-  writeFileSync(path.join(workdir, 'timeline.csv'), 'file,layer,start_seconds,duration_seconds,source_in,source_out\n' + beats.map((b) => [b.file, b.layer ?? 'main', b.startS, b.durS, b.trimStartS ?? 0, b.trimEndS ?? ''].join(',')).join('\n'))
+  writeFileSync(path.join(workdir, 'timeline.csv'), 'file,layer,start_seconds,duration_seconds,source_in,source_out,fade_in_seconds,fade_out_seconds\n' + beats.map((b) => [b.file, b.layer ?? 'main', b.startS, b.durS, b.trimStartS ?? 0, b.trimEndS ?? '', b.fadeInS ?? 0, b.fadeOutS ?? 0].join(',')).join('\n'))
   writeFileSync(path.join(workdir, 'script.txt'), `HOOK: ${manifest.hook}\n\n${manifest.script.join('\n')}\n\nCAPTION: ${manifest.caption}\n`)
-  writeFileSync(path.join(workdir, 'CAPCUT-README.txt'), `CAPCUT MEDIA HANDOFF\n\n1. Unzip this folder. Create a 9:16, 30fps project in CapCut Desktop.\n2. Import the files in media/. Use timeline.csv to arrange the main track in order, set durations, and apply source in/out trims.\n3. Files marked overlay go on an upper track at their listed start time.\n4. Add ${hookFile} above the video from 0 to ${manifest.hookEndS}s.\n${musicFile ? `5. Add ${musicFile} as the music track and fade out over the last second.\n` : '5. Add music in CapCut if desired.\n'}\nChat and product screens are PNGs. Their text is baked into the images; edit wording in Content Pipeline and export again. Source videos are included for retrimming. For short source ranges, adjust speed to fill the listed beat duration. Story reply fades can be recreated in CapCut using the reference video.\n\nThis is a media-and-timing bundle, not a native CapCut project. CapCut does not document third-party project imports. timeline.json is a portable edit description for future integrations, not a CapCut import file.\n`)
+  writeFileSync(path.join(workdir, 'CAPCUT-README.txt'), `CAPCUT MEDIA HANDOFF\n\n1. Unzip this folder. Create a 9:16, 30fps project in CapCut Desktop.\n2. Import the files in media/. Use timeline.csv to arrange the main track in order, set durations, and apply source in/out trims.\n3. Files marked overlay go on an upper track at their listed start time.\n4. Add ${hookFile} above the video from 0 to ${manifest.hookEndS}s.\n${musicFile ? `5. Add ${musicFile} as the music track and fade out over the last second.\n` : '5. Add music in CapCut if desired.\n'}\nChat and product screens are PNGs. Their text is baked into the images; edit wording in Content Pipeline and export again. Source videos are included for retrimming. For short source ranges, adjust speed to fill the listed beat duration. Apply a fade to black on each clip using the fade_in_seconds and fade_out_seconds columns; they are already baked into the rendered MP4.\n\nThis is a media-and-timing bundle, not a native CapCut project. CapCut does not document third-party project imports. timeline.json is a portable edit description for future integrations, not a CapCut import file.\n`)
   for (const name of ['timeline.json', 'timeline.csv', 'script.txt', 'CAPCUT-README.txt']) entries.push({ name, file: path.join(workdir, name) })
   const filename = 'capcut-media.zip'
   writeMediaZip(path.join(workdir, filename), entries)

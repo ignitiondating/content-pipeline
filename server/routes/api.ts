@@ -8,10 +8,11 @@ import { createPromoShot, getPromoShotSpec, PromoShotSpecSchema } from '../rende
 import { ChatShotSpecSchema, createChatShot, getChatShotSpec } from '../render/chatShot'
 import { FORMATS, DRAFT_STATUSES } from '../../shared/formats/draft'
 import { SLIDESHOW_STYLES } from '../../shared/formats/slideshow'
-import { buildClipTimeline } from '../../shared/timeline'
+import { resolveOverlayEdit } from '../../shared/timeline'
 import { DEFAULT_EXAMPLES, ExamplesSchema } from '../../shared/examples'
 import { zodIssues } from '../../shared/validate'
 import { AUDIO_EXT, IMAGE_EXT, VIDEO_EXT, listAssets, rescanAssets } from '../assets/catalog'
+import { BROLL_ROLES, DEFAULT_BROLL_ROLE } from '../../shared/broll'
 import { chromiumAvailable } from '../capture/browser'
 import { allSettings, getDraft, getSetting, listDrafts, setSetting, statusCounts, updateDraft } from '../db/repo'
 import { MODELS } from '../generate/client'
@@ -114,9 +115,15 @@ api.post('/drafts/:id/regenerate', async (c) => {
 api.get('/specs/:id', (c) => {
   const draft = getDraft(c.req.param('id'))
   if (!draft) return c.json({ error: 'not found' }, 404)
+  // The capture page asks for state N of the floating-card timeline. Once the
+  // reveals are editable this has to come through the same door the renderer
+  // uses, or the screenshots would be of the wrong messages.
   const clipTimeline =
     draft.format === 'clip'
-      ? buildClipTimeline((draft.spec as { chat: Parameters<typeof buildClipTimeline>[0] }).chat)
+      ? (() => {
+          const { states, durationS } = resolveOverlayEdit(draft.spec as ClipSpec, [])
+          return { states, durationS }
+        })()
       : null
   return c.json({ format: draft.format, spec: draft.spec, meta: draft.meta, clipTimeline })
 })
@@ -218,7 +225,13 @@ api.post('/assets/upload', async (c) => {
       if (body.tag !== 'basketball' && body.tag !== '3d') {
         return c.json({ error: 'b-roll needs tag "basketball" or "3d"' }, 400)
       }
-      dir = path.join(BROLL_DIR, body.tag)
+      // Where in a video the clip belongs. Unsaid means between the messages,
+      // which is where most footage goes and what loose files already are.
+      const role = typeof body.role === 'string' && body.role ? body.role : DEFAULT_BROLL_ROLE
+      if (!(BROLL_ROLES as readonly string[]).includes(role)) {
+        return c.json({ error: `b-roll role must be one of ${BROLL_ROLES.join(', ')}` }, 400)
+      }
+      dir = path.join(BROLL_DIR, body.tag, role)
     } else {
       return c.json({ error: 'kind must be background, music or broll' }, 400)
     }

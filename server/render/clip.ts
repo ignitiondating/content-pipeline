@@ -4,22 +4,22 @@ import path from 'node:path'
 import type { Draft } from '../../shared/formats/draft'
 import { CLIP_LIMITS, type ClipSpec } from '../../shared/formats/clip'
 import {
-  buildClipTimeline,
   promoContentFor,
   resolveClipSegments,
+  resolveOverlayEdit,
   segmentsDurationS,
   type EditedSegment,
+  type ResolvedOverlay,
 } from '../../shared/timeline'
+import { fadesForSegments } from '../../shared/transitions'
 import type { EditorManifest } from './editorBundle'
 import { dropPromoShotSpec, stashPromoShotSpec } from './promoShot'
 import { assetsInPathOrder, listAssets, markAssetUsed, pickAsset, type Asset } from '../assets/catalog'
 import { captureSequence, type CaptureRequest } from '../capture/screenshot'
 import { FILES_ROOT } from '../paths'
-import { probeFfmpeg, probeMedia, type FfmpegCapabilities } from './ffmpeg'
+import { probeFfmpeg, type FfmpegCapabilities } from './ffmpeg'
+import { FPS, NORM, collectVideoInputs, stillChain, videoChain } from './clipFilters'
 import type { ProgressFn } from './carousel'
-
-const FPS = 30
-const NORM = `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=${FPS},setsar=1,format=yuv420p`
 
 export async function renderClip(
   draft: Draft,
@@ -59,27 +59,47 @@ export async function renderClip(
     }
     await renderCuts(draft, spec, segments, music, workdir, setProgress)
   } else {
-    const broll = spec.brollPaths?.length
-      ? listAssets().find((a) => a.path === spec.brollPaths![0] && a.kind === 'broll' && !a.missing)
-      : pickAsset('broll', spec.brollTag)
-    if (!broll) throw noBroll()
-    await renderOverlay(draft, spec, broll, music, workdir, setProgress)
+    // Same door as the cuts branch: the operator's frozen background if there
+    // is one, otherwise the single clip this format has always used.
+    const chosen = spec.brollPaths?.length
+      ? spec.brollPaths
+          .map((p) => listAssets().find((a) => a.path === p && !a.missing))
+          .filter((a): a is Asset => Boolean(a))
+      : []
+    const fallback = pickAsset('broll', spec.brollTag)
+    const ordered = chosen.length ? chosen : fallback ? [fallback] : []
+    if (!ordered.length && !spec.overlay?.bg.length) throw noBroll()
+    const edit = resolveOverlayEdit(spec, ordered.map((a) => a.path))
+    const live = listAssets()
+    if (edit.bg.some((b) => !live.some((a) => a.path === b.path && !a.missing))) {
+      throw new Error('This edit references missing media. Replace it in the timeline before rendering.')
+    }
+    for (const p of new Set(edit.bg.map((b) => b.path))) {
+      const asset = live.find((a) => a.path === p && !a.missing)
+      if (asset) markAssetUsed(asset.id)
+    }
+    await renderOverlay(draft, spec, edit, music, workdir, setProgress)
   }
 }
 
-/** Chat card floating over continuous b-roll, revealed state by state. */
+/**
+ * Chat card floating over continuous b-roll, revealed state by state. The
+ * footage underneath can now be several clips cut together; one clip with
+ * nothing done to it keeps the old single-input path, which is also the only
+ * way a 6s file can back a 24s video without slowing to a crawl.
+ */
 async function renderOverlay(
   draft: Draft,
   spec: ClipSpec,
-  broll: Asset,
+  edit: ResolvedOverlay,
   music: Asset | null,
   workdir: string,
   setProgress: ProgressFn,
 ): Promise<void> {
-  const timeline = buildClipTimeline(spec.chat)
+  const { bg, states, durationS } = edit
 
-  setProgress(0.05, `capturing ${timeline.states.length} chat states`)
-  const captures: CaptureRequest[] = timeline.states.map((_, i) => ({
+  setProgress(0.05, `capturing ${states.length} chat states`)
+  const captures: CaptureRequest[] = states.map((_, i) => ({
     route: `/render/chat?specId=${draft.id}&clipState=${i}`,
     outPath: path.join(workdir, `state_${String(i).padStart(2, '0')}.png`),
     transparent: true,
@@ -93,23 +113,63 @@ async function renderOverlay(
 
   setProgress(0.35, 'encoding')
   const caps = await probeFfmpeg()
-  const durationS = timeline.durationS
+
+  const fades = fadesForSegments(bg, { style: spec.transitions?.style })
+  const single = bg.length === 1 && bg[0].type === 'broll'
+    && bg[0].trimStartS === undefined && bg[0].trimEndS === undefined
+    && !fades[0].inS && !fades[0].outS
 
   const args: string[] = ['-y', '-hide_banner']
-  args.push('-stream_loop', '-1', '-t', durationS.toFixed(3), '-i', path.join(FILES_ROOT, broll.path))
-  for (let i = 0; i < timeline.states.length; i++) {
+  const filters: string[] = []
+  const beats: EditorManifest['beats'] = []
+
+  if (single) {
+    args.push('-stream_loop', '-1', '-t', durationS.toFixed(3), '-i', path.join(FILES_ROOT, bg[0].path))
+    filters.push(`[0:v]${NORM}[bg]`)
+    beats.push({ file: bg[0].path, source: 'library', startS: 0, durS: durationS })
+  } else {
+    const videoInputs = await collectVideoInputs(bg, args, { loopShort: true })
+    const stills = new Map<string, number>()
+    for (const cut of bg) {
+      if (cut.type !== 'image' || stills.has(cut.path)) continue
+      stills.set(cut.path, videoInputs.size + stills.size)
+      const holdS = Math.max(...bg.filter((b) => b.path === cut.path).map((b) => b.durS))
+      args.push('-loop', '1', '-t', holdS.toFixed(3), '-i', path.join(FILES_ROOT, cut.path))
+    }
+    let startS = 0
+    bg.forEach((cut, i) => {
+      const beat: EditorManifest['beats'][number] = {
+        file: cut.path, source: 'library', startS, durS: cut.durS,
+        fadeInS: fades[i].inS || undefined, fadeOutS: fades[i].outS || undefined,
+      }
+      startS = Math.round((startS + cut.durS) * 1000) / 1000
+      if (cut.type === 'broll') {
+        const chain = videoChain(cut, videoInputs.get(cut.path)!, `b${i}`, fades[i])
+        beat.trimStartS = chain.trimStartS
+        beat.trimEndS = chain.trimEndS
+        filters.push(chain.filter)
+      } else {
+        filters.push(stillChain(stills.get(cut.path)!, cut.durS, `b${i}`, fades[i]))
+      }
+      beats.push(beat)
+    })
+    filters.push(`${bg.map((_, i) => `[b${i}]`).join('')}concat=n=${bg.length}:v=1:a=0[bg]`)
+  }
+
+  // The card captures and the hook come after whatever the background used.
+  const stateInput = countInputs(args)
+  for (let i = 0; i < states.length; i++) {
     args.push('-i', path.join(workdir, `state_${String(i).padStart(2, '0')}.png`))
   }
   args.push('-i', path.join(workdir, 'hook.png'))
-  const hookInput = timeline.states.length + 1
+  const hookInput = stateInput + states.length
   if (music) args.push('-i', path.join(FILES_ROOT, music.path))
 
-  const filters: string[] = [`[0:v]${NORM}[bg]`]
   let current = 'bg'
-  timeline.states.forEach((state, i) => {
+  states.forEach((state, i) => {
     const next = `v${i}`
     filters.push(
-      `[${current}][${i + 1}:v]overlay=0:0:eof_action=repeat:enable='between(t,${state.tStartS},${state.tEndS})'[${next}]`,
+      `[${current}][${stateInput + i}:v]overlay=0:0:eof_action=repeat:enable='between(t,${state.tStartS},${state.tEndS})'[${next}]`,
     )
     current = next
   })
@@ -128,12 +188,17 @@ async function renderOverlay(
   const manifest: EditorManifest = {
     caption: draft.meta.caption, script: spec.chat.messages.map((m) => `${m.from}: ${m.text}`), hook: spec.hook,
     hookEndS: hookEnd, musicPath: music?.path,
-    beats: [{ file: broll.path, source: 'library', startS: 0, durS: durationS },
-      ...timeline.states.map((state, i) => ({ file: `state_${String(i).padStart(2, '0')}.png`, source: 'render' as const, layer: 'overlay', startS: state.tStartS, durS: state.tEndS - state.tStartS }))],
+    beats: [...beats,
+      ...states.map((state, i) => ({ file: `state_${String(i).padStart(2, '0')}.png`, source: 'render' as const, layer: 'overlay', startS: state.tStartS, durS: round3(state.tEndS - state.tStartS) }))],
   }
   writeFileSync(path.join(workdir, 'editor-manifest.json'), JSON.stringify(manifest))
   setProgress(1)
 }
+
+const round3 = (v: number): number => Math.round(v * 1000) / 1000
+
+/** How many inputs the argv declares so far, so later ones get the right index. */
+const countInputs = (args: string[]): number => args.filter((a) => a === '-i').length
 
 /**
  * The @fivestaryra reference format: full-screen chat screenshots hard-cut
@@ -207,16 +272,7 @@ async function renderCuts(
 
   // One input per unique video file; every segment reads from it by index.
   const args: string[] = ['-y', '-hide_banner']
-  const videoInputs = new Map<string, { input: number; durS: number; uses: number }>()
-  for (const segment of segments) {
-    if (segment.type !== 'broll' || videoInputs.has(segment.path)) continue
-    const full = path.join(FILES_ROOT, segment.path)
-    const durS = listAssets().find((a) => a.path === segment.path)?.durationS
-      ?? (await probeMedia(full)).durationS
-      ?? 8
-    videoInputs.set(segment.path, { input: videoInputs.size, durS, uses: 0 })
-    args.push('-i', full)
-  }
+  const videoInputs = await collectVideoInputs(segments, args)
   // Stills — inserted photos, chat screens, the promo shot — each held for
   // as long as the longest frame that uses them.
   const holdFor = (key: string): number =>
@@ -244,64 +300,30 @@ async function renderCuts(
   const labels: string[] = []
   const beats: EditorManifest['beats'] = []
   let timelineStart = 0
+  // Every frame dips in and out of black, scaled to its own length — the cut
+  // between the footage and a screenshot is what read as a jump without it.
+  // The reference's longer story transition survives as one of these.
+  const fades = fadesForSegments(segments, {
+    style: spec.transitions?.style,
+    storyFade: Boolean(spec.chat.storyReply) && spec.chat.messages.length > 1,
+  })
   segments.forEach((segment, i) => {
+    const fade = fades[i]
     const beat: EditorManifest['beats'][number] = {
       file: segment.type === 'chat' ? `chat_${pad2(segment.visibleCount)}.png` : segment.type === 'promo' ? 'promo.png' : segment.path,
       source: segment.type === 'broll' || segment.type === 'image' ? 'library' : 'render',
       startS: timelineStart, durS: segment.durS,
+      fadeInS: fade.inS || undefined, fadeOutS: fade.outS || undefined,
     }
     timelineStart = Math.round((timelineStart + segment.durS) * 1000) / 1000
     beats.push(beat)
     if (segment.type === 'broll') {
-      const source = videoInputs.get(segment.path)!
-      const trimmed = segment.trimStartS !== undefined || segment.trimEndS !== undefined
-      const start = Math.max(0, Math.min(segment.trimStartS ?? 0, Math.max(source.durS - 0.2, 0)))
-      // What the operator kept between the handles, or the whole file.
-      const available = trimmed
-        ? Math.max((segment.trimEndS ?? source.durS) - start, 0.1)
-        : source.durS
-      if (available <= segment.durS + 0.05) {
-        // Shorter than its beat: stretch it (subtle slow-mo) instead of
-        // looping — a restart mid-beat reads as a glitch.
-        beat.trimStartS = start
-        beat.trimEndS = start + available
-        const ratio = segment.durS / Math.max(available, 0.1)
-        const cut = trimmed
-          ? `trim=start=${start.toFixed(3)}:duration=${available.toFixed(3)},`
-          : ''
-        filters.push(
-          `[${source.input}:v]${cut}setpts=${ratio.toFixed(4)}*(PTS-STARTPTS),${NORM},trim=duration=${segment.durS.toFixed(3)}[s${i}]`,
-        )
-      } else {
-        // Trimmed: play exactly from the handle. Untrimmed and repeated:
-        // sample a later offset so the beat still looks different.
-        let from = start
-        if (!trimmed) {
-          from = (source.uses * 6.7) % Math.max(source.durS - segment.durS, 0.01)
-          if (from + segment.durS > source.durS) from = 0
-        }
-        beat.trimStartS = from
-        beat.trimEndS = from + segment.durS
-        source.uses++
-        filters.push(
-          `[${source.input}:v]trim=start=${from.toFixed(3)}:duration=${segment.durS.toFixed(3)},setpts=PTS-STARTPTS,${NORM}[s${i}]`,
-        )
-      }
-    } else if (segment.type === 'image' || segment.type === 'promo') {
-      const input = stillInputs.get(stillKey(segment))!
-      filters.push(`[${input}:v]${NORM},trim=duration=${segment.durS.toFixed(3)}[s${i}]`)
+      const chain = videoChain(segment, videoInputs.get(segment.path)!, `s${i}`, fade)
+      beat.trimStartS = chain.trimStartS
+      beat.trimEndS = chain.trimEndS
+      filters.push(chain.filter)
     } else {
-      const input = stillInputs.get(stillKey(segment))!
-      // Reference transition: the story screen fades to black and her reply
-      // fades in — the one soft cut in an otherwise hard-cut edit.
-      const storyFade = Boolean(spec.chat.storyReply) && spec.chat.messages.length > 1
-      const fade =
-        storyFade && segment.visibleCount === 1
-          ? `,fade=t=out:st=${(segment.durS - 0.6).toFixed(3)}:d=0.6`
-          : storyFade && segment.visibleCount === 2
-            ? ',fade=t=in:st=0:d=0.45'
-            : ''
-      filters.push(`[${input}:v]${NORM},trim=duration=${segment.durS.toFixed(3)}${fade}[s${i}]`)
+      filters.push(stillChain(stillInputs.get(stillKey(segment))!, segment.durS, `s${i}`, fade))
     }
     labels.push(`[s${i}]`)
   })

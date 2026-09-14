@@ -3,6 +3,68 @@ import { ChatSpecSchema } from './chat'
 
 export const BROLL_TAGS = ['basketball', '3d'] as const
 
+const DurS = z.number().min(0.2).max(20)
+/** Seconds of fade to black on each side of a frame. 0 = hard cut; absent = automatic. */
+const FadeS = z.number().min(0).max(2).optional()
+
+/** How strong the automatic fades are, when a frame doesn't pin its own. */
+export const FADE_STYLES = ['off', 'soft', 'strong'] as const
+export type FadeStyle = (typeof FADE_STYLES)[number]
+
+// The frames of an edit, named once so both structures share them: the 'cuts'
+// timeline uses all four, the 'overlay' background track the visual two.
+export const ChatSegmentSchema = z.object({
+  type: z.literal('chat'),
+  visibleCount: z.number().int().min(1),
+  durS: DurS,
+  fadeS: FadeS,
+})
+export const PromoSegmentSchema = z.object({ type: z.literal('promo'), durS: DurS, fadeS: FadeS })
+export const BrollSegmentSchema = z.object({
+  type: z.literal('broll'),
+  path: z.string().max(300),
+  durS: DurS,
+  trimStartS: z.number().min(0).optional(),
+  trimEndS: z.number().min(0).optional(),
+  fadeS: FadeS,
+})
+export const ImageSegmentSchema = z.object({
+  type: z.literal('image'),
+  path: z.string().max(300),
+  durS: DurS,
+  fadeS: FadeS,
+})
+
+export const EditedSegmentSchema = z.discriminatedUnion('type', [
+  ChatSegmentSchema,
+  PromoSegmentSchema,
+  BrollSegmentSchema,
+  ImageSegmentSchema,
+])
+
+/** Background beats of an 'overlay' clip: footage and stills, no chat screens. */
+export const BackgroundSegmentSchema = z.discriminatedUnion('type', [BrollSegmentSchema, ImageSegmentSchema])
+
+/**
+ * One visual state of the floating card: a message reveal, or the typing beat
+ * that precedes an incoming one. `visibleCount` 0 is the empty thread.
+ */
+export const OverlayRevealSchema = z.object({
+  visibleCount: z.number().int().min(0),
+  typing: z.boolean().default(false),
+  durS: DurS,
+})
+
+/**
+ * The 'overlay' edit, frozen: two parallel tracks. They are kept apart from
+ * `segments` because every helper there assumes the frames add up to the
+ * runtime, which is only true of the reveal track here.
+ */
+export const OverlayEditSchema = z.object({
+  bg: z.array(BackgroundSegmentSchema).min(1).max(40),
+  reveals: z.array(OverlayRevealSchema).min(1).max(80),
+})
+
 /**
  * Format 3 — 15–40s vertical clip: b-roll fills the frame, hook text is
  * burned into frame 1, and the chat exchange reveals message by message
@@ -37,39 +99,35 @@ export const ClipSpecSchema = z.object({
   /** Exact photo for the story-reply opener; otherwise rotation picks one. */
   storyImagePath: z.string().max(300).optional(),
   /**
-   * Per-beat duration overrides in seconds. Keys are stable across text
-   * edits: chat holds by visibleCount, b-roll beats by burst ordinal.
-   * Anything absent is computed by the solver as usual.
-   */
-  /**
    * The edit, frozen. Absent means the structure is derived from the chat
    * (the default); present means the operator moved, trimmed or inserted
    * something and this list is now the truth.
    */
-  segments: z
-    .array(
-      z.discriminatedUnion('type', [
-        z.object({ type: z.literal('chat'), visibleCount: z.number().int().min(1), durS: z.number().min(0.2).max(20) }),
-        z.object({ type: z.literal('promo'), durS: z.number().min(0.2).max(20) }),
-        z.object({
-          type: z.literal('broll'),
-          path: z.string().max(300),
-          durS: z.number().min(0.2).max(20),
-          trimStartS: z.number().min(0).optional(),
-          trimEndS: z.number().min(0).optional(),
-        }),
-        z.object({ type: z.literal('image'), path: z.string().max(300), durS: z.number().min(0.2).max(20) }),
-      ]),
-    )
-    .max(60)
-    .optional(),
+  segments: z.array(EditedSegmentSchema).max(60).optional(),
+  /**
+   * The same, for the 'overlay' structure. Absent means the card timing comes
+   * from the conversation and one clip plays underneath, as it always has.
+   */
+  overlay: OverlayEditSchema.optional(),
+  /**
+   * How hard the automatic fade to black between frames is. A frame's own
+   * `fadeS` always wins; this only sets what the rest of them do.
+   */
+  transitions: z.object({ style: z.enum(FADE_STYLES).default('soft') }).optional(),
+  /**
+   * Per-beat duration overrides in seconds. Keys are stable across text
+   * edits: chat holds by visibleCount, b-roll beats by burst ordinal.
+   * Anything absent is computed by the solver as usual.
+   */
   timing: z
     .object({
-      chatHoldsS: z.record(z.string(), z.number().min(0.4).max(15)).optional(),
-      brollBeatsS: z.record(z.string(), z.number().min(0.4).max(15)).optional(),
-      introS: z.number().min(0.4).max(15).optional(),
+      // Same range as a frozen frame's durS, so retiming a beat can't depend
+      // on whether the edit happens to be frozen yet.
+      chatHoldsS: z.record(z.string(), z.number().min(0.4).max(20)).optional(),
+      brollBeatsS: z.record(z.string(), z.number().min(0.4).max(20)).optional(),
+      introS: z.number().min(0.4).max(20).optional(),
       outroS: z.number().min(0.4).max(20).optional(),
-      promoS: z.number().min(0.4).max(15).optional(),
+      promoS: z.number().min(0.4).max(20).optional(),
     })
     .optional(),
 })

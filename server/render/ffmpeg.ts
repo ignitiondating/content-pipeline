@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile)
  * libfreetype, so it cannot burn text; the project vendors its own binary
  * (scripts/setup-ffmpeg.mjs) and this probe verifies it before rendering.
  */
-const REQUIRED_FILTERS = ['overlay', 'scale', 'crop', 'format'] as const
+const REQUIRED_FILTERS = ['overlay', 'scale', 'crop', 'format', 'fade'] as const
 
 function candidates(binary: 'ffmpeg' | 'ffprobe'): string[] {
   const found = [

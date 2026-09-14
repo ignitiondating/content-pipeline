@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type AssetItem } from '../lib/api'
+import { BROLL_ROLES, BROLL_ROLE_LABELS, DEFAULT_BROLL_ROLE, roleOfPath, type BrollRole } from '@shared/broll'
 
 const UPLOAD_KINDS = [
   { key: 'broll', label: 'B-roll video' },
@@ -13,6 +14,7 @@ export default function Assets() {
   const [busy, setBusy] = useState(false)
   const [uploadKind, setUploadKind] = useState<(typeof UPLOAD_KINDS)[number]['key']>('broll')
   const [uploadTag, setUploadTag] = useState<'basketball' | '3d'>('basketball')
+  const [uploadRole, setUploadRole] = useState<BrollRole>(DEFAULT_BROLL_ROLE)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const load = () => api.assets().then((r) => setAssets(r.assets)).catch(() => {})
@@ -28,6 +30,7 @@ export default function Assets() {
         file,
         uploadKind,
         uploadKind === 'broll' ? uploadTag : undefined,
+        uploadKind === 'broll' ? uploadRole : undefined,
       )
       setMessage(`Uploaded ${asset.path}`)
       load()
@@ -82,6 +85,18 @@ export default function Assets() {
             <option value="3d">3d</option>
           </select>
         )}
+        {uploadKind === 'broll' && (
+          <select
+            aria-label="Where these clips belong in a video"
+            value={uploadRole}
+            onChange={(e) => setUploadRole(e.target.value as BrollRole)}
+            className="rounded-lg border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-sm"
+          >
+            {BROLL_ROLES.map((role) => (
+              <option key={role} value={role}>{BROLL_ROLE_LABELS[role]}</option>
+            ))}
+          </select>
+        )}
         <button
           onClick={() => fileInput.current?.click()}
           disabled={busy}
@@ -120,6 +135,7 @@ export default function Assets() {
             <th className="py-2">Path</th>
             <th>Kind</th>
             <th>Tag</th>
+            <th>Role</th>
             <th>Duration</th>
             <th>Uses</th>
           </tr>
@@ -135,6 +151,7 @@ export default function Assets() {
               <td className="py-2">{asset.path}{asset.missing && ' (missing)'}</td>
               <td>{asset.kind}</td>
               <td>{asset.tag ?? '—'}</td>
+              <td>{asset.kind === 'broll' ? BROLL_ROLE_LABELS[roleOfPath(asset.path)] : '—'}</td>
               <td>{asset.durationS ? `${asset.durationS.toFixed(1)}s` : '—'}</td>
               <td>{asset.useCount}</td>
             </tr>

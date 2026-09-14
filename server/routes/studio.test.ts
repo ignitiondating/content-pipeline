@@ -100,7 +100,6 @@ it('starts with existing B-roll selected and preserves saved footage choices', a
     const response = await post(`/templates/${template.id}/start`, {})
     const { draft } = await response.json()
     expect(draft.spec.brollPaths).toContain(file)
-    if (template.spec.structure === 'overlay') expect(draft.spec.brollPaths).toHaveLength(1)
     const { resolveClipSegments } = await import('../../shared/timeline')
     if (template.spec.structure === 'cuts') {
       const footage = resolveClipSegments(draft.spec, draft.spec.brollPaths).filter((s) => s.type === 'broll')

@@ -27,6 +27,7 @@ npm run dev            # studio at http://localhost:5173 (API on :8787)
 Then drop assets into `library/` and hit **Rescan** on the Assets page:
 
 - `library/broll/basketball/*.mp4`, `library/broll/3d/*.mp4` — clip backgrounds (free stock: Pexels/Pixabay/Mixkit; or AI-generated vertical loops)
+  - Two folders deep sets what a clip is *for*: `basketball/intro/` opens the video, `basketball/beats/` plays between the messages, `basketball/outro/` closes it. A clip dropped straight into the tag folder counts as a between-messages beat, so an existing library keeps working untouched. Uploads from the editor land in the role picked next to the drop zone.
 - `library/backgrounds/*.jpg` — slideshow photo backgrounds (falls back to a flat matte look when empty)
 - `library/music/*.mp3` — optional muxed tracks (trending sounds are better added in-app at post time)
 
@@ -36,7 +37,11 @@ A fresh clone starts empty: drafts, renders, exports, assets and the local datab
 
 ### Template-first video creation
 
-The **Create** page starts with a video template gallery. Choose **Shoot your shot** (hard cuts) or **Floating conversation** (continuous footage), or reuse a template saved from an earlier edit. Selecting a video format immediately opens a saved, populated editor with a preview and editable script—there is no idea/setup screen. Customize the hook and conversation directly, or expand **Draft a new script with AI** in the editor. AI suggestions are reviewed before applying and preserve the hook, speakers, and footage. Hard-cut timing stays fixed; floating chat pacing follows the new message lengths. Create hook batches from the editor when ready. All versions remain in Your content for review.
+The **Create** page starts with a video template gallery. Choose **Shoot your shot** (hard cuts) or **Floating conversation** (continuous footage), or reuse a template saved from an earlier edit. Both open the same timeline editor. Selecting a video format immediately opens a saved, populated editor with a preview and editable script—there is no idea/setup screen. Customize the hook and conversation directly, or expand **Draft a new script with AI** in the editor. AI suggestions are reviewed before applying and preserve the hook, speakers, and footage. Hard-cut timing stays fixed; floating chat pacing follows the new message lengths. Create hook batches from the editor when ready. All versions remain in Your content for review.
+
+Every frame fades in and out of black, scaled to its own length, so a screenshot entering or leaving the footage reads as one video instead of a jump cut. **Transitions** above the timeline sets how strong that is (hard cuts, fade to black, long fades) and the selected beat can pin its own fade in seconds. The timeline draws each fade as a dark edge on the block.
+
+**Floating conversation** edits on two lanes sharing one ruler and playhead: the footage underneath and the card reveals on top. The conversation owns the runtime — retiming a message stretches the footage to cover it — while cutting, trimming or retiming the footage never moves the script; a clip takes the time from its neighbour. Drag a clip onto the footage lane to cut between several backgrounds instead of looping one. A background clip shorter than its slot loops rather than slowing down.
 
 The hard-cut editor combines the timeline, video preview, hook/script, and footage library in one view. A readiness bar links directly to missing hooks, empty messages, or unavailable media; rendering stays disabled until these are resolved. The timeline supports: drag beats to reorder, resize their right edges to change duration, and drag the white playhead to scrub. The play/pause control below the timeline resumes from the selected time, with a live timecode and playhead that follows playback. Edit the hook and conversation, search your existing B-roll library, drag footage onto the timeline, or upload MP4/MOV/WebM files directly in the editor. Multiple uploaded clips fill available B-roll slots without changing their timing. The trim handles select up to 20 seconds of source footage per beat. Story replies start with a bundled AI-generated photo. Use **Replace story** under the hook to upload, drop in, or select another image from the library; the rendered video uses that same story. Custom screenshots can be made with the existing Tools page and inserted through the frame controls.
 
@@ -58,7 +63,7 @@ The flow is a funnel — the steps bar at the top of the studio mirrors it:
 
 - **Style guide** distilled from the Aug-2026 competitive research: the caption language that ranks ("*take notes*", "huzz", question captions, outcome hashtags `#bagged #folded #clutch #unoreverse`) and the words no viral post in the niche uses ("dating", "relationship", "AI assistant"). Plus realism rules for conversations and content guardrails (playful never explicit, adults only, no invented product features).
 - **Dedupe**: hooks from the last ~30 approved/posted drafts are passed to Claude as "do not repeat these premises".
-- **Asset rotation**: b-roll, backgrounds and music are picked least-recently-used within their tag so consecutive renders never repeat.
+- **Asset rotation**: b-roll, backgrounds and music are picked least-recently-used within their tag so consecutive renders never repeat. Within a video, clips are picked by role: the opening beat from `intro/`, the closer from `outro/`, and the beats between messages rotate through `beats/`.
 - Model is configurable in Settings (`claude-sonnet-5` default, `claude-fable-5` available).
 
 ## Architecture
@@ -100,7 +105,7 @@ npm run typecheck
 ## To-dos
 
 - [ ] **Real collaboration.** Today the tool is single-operator: drafts, history and exports live in a local SQLite file and are not shared through git (by design — heavy binaries, constant DB conflicts). To let a team work against the same content pool: move persistence to a shared database (hosted Postgres or Turso) and exports to object storage (S3/R2), with the render queue still running locally per operator. Interim workaround: zip `out/exports/` or copy `data/studio.db` + `out/exports/` to a teammate.
-- [ ] Real basketball b-roll in `library/broll/basketball/` (free stock or licensed footage; current file is a synthetic test gradient).
+- [ ] More basketball b-roll, filed by role in `library/broll/basketball/intro|beats|outro/` — the variety between messages is what keeps a video from feeling repetitive, and there is no stock-footage provider wired in, so this is a sourcing job.
 - [ ] Optional ElevenLabs TTS voiceover for slideshows/clips (planned, behind a setting).
 - [ ] Auto-posting when TikTok/IG publishing APIs become available to us.
 - [ ] Per-format field editors in the Draft Editor (today: meta form + raw JSON spec with live preview).
